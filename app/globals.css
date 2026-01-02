@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+:root {
+  font-family: var(--font-inter-display), sans-serif;
+}
+html, body {
+  font-family: var(--font-inter-display), sans-serif;
+}
+
+
+body {
+  background-color: #ffff;
+}
+
+/* styles/globals.css or component CSS module */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE 10+ */
+  scrollbar-width: none;     /* Firefox */
+}
