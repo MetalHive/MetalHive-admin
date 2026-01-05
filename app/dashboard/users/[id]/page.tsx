@@ -1,7 +1,9 @@
+'use client'
 import SideBar from "@/app/Components/Sidebar"
 import ListingsTable from "@/app/Components/userListingTable"
 import { ChevronLeft, Edit, Shield, Trash2 } from 'lucide-react';
-
+import { Modal } from '@/app/Components/Modal';
+import { useState } from "react";
 interface UserProfileHeaderProps {
   userId?: string;
   userName?: string;
@@ -20,6 +22,8 @@ const UserProfile: React.FC<UserProfileHeaderProps> = ({
   reputation = 4.8,
   listingsSold = 12240
 }) => {
+  
+    const [modalType, setModalType] = useState<string | null>(null);
   return (
     <div className='flex min-h-screen bg-[#EFEFEF]'>
       <SideBar />
@@ -68,11 +72,13 @@ const UserProfile: React.FC<UserProfileHeaderProps> = ({
               </div>
               
               <div className="flex items-center gap-3">
-                <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                   onClick={() => setModalType("SUSPEND_ACCOUNT")}>
                   <Shield className="w-4 h-4" />
                   Suspend Account
                 </button>
-                <button className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">
+                <button className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
+                   onClick={() => setModalType("DELETE_LISTING")}>
                   <Trash2 className="w-4 h-4" />
                   Delete Account
                 </button>
@@ -110,6 +116,13 @@ const UserProfile: React.FC<UserProfileHeaderProps> = ({
         {/* Listings Table */}
         <ListingsTable />
       </div>
+          {modalType && (
+              <Modal
+                type={modalType}
+                isOpen={true}
+                onClose={() => setModalType(null)}
+              />
+            )}
     </div>
   );
 }
