@@ -2,36 +2,42 @@
 
 import SubscriptionsTable from "@/app/Components/SubscriptionsTable";
 import StatsCard from "@/app/Components/StatsCard";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Calendar } from "lucide-react";
+import useSubscriptionStore from "@/app/store/useSubscriptionStore";
 
 import SideBar from "@/app/Components/Sidebar";
 
 export default function SubscriptionsPage() {
     const [dateFilter, setDateFilter] = useState("Last 30 days");
 
-    const stats = [
+    const { stats, fetchStats } = useSubscriptionStore();
+    useEffect(() => {
+        fetchStats();
+    }, []);
+
+    const statsCards = [
         {
             title: "Active Subscriptions",
-            value: "2,340",
+            value: stats?.activeCount.toLocaleString() || "0",
             icon: null,
             subtitle: null,
         },
         {
             title: "Cancelled Subscriptions",
-            value: "1,980",
+            value: stats?.cancelledCount.toLocaleString() || "0",
             icon: null,
             subtitle: null,
         },
         {
             title: "Expired Subscriptions",
-            value: "1,120",
+            value: stats?.expiredCount.toLocaleString() || "0",
             icon: null,
             subtitle: null,
         },
         {
             title: "Monthly Recurring Revenue",
-            value: "$12,240",
+            value: `$${(stats?.mrr || 0).toLocaleString()}`,
             icon: null,
             subtitle: null,
         },
@@ -59,7 +65,7 @@ export default function SubscriptionsPage() {
 
                     {/* Stats Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                        {stats.map((stat, index) => (
+                        {statsCards.map((stat, index) => (
                             <StatsCard
                                 key={index}
                                 title={stat.title}

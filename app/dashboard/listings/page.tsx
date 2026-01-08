@@ -1,45 +1,54 @@
 'use client'
 import SideBar from '@/app/Components/Sidebar'
-import TableWithTabs from '@/app/Components/Listing2Table'
-import { useState } from 'react'
+import TableWithTabs from '@/app/Components/ListingsTable' // This was Listing2Table before, assuming ListingsTable replaces it or we should stick to ListingsTable
+import { useState, useEffect } from 'react'
 import { FaSortDown } from "react-icons/fa";
 import { LuCalendarRange } from "react-icons/lu";
+import useListingsStore from '@/app/store/useListingsStore';
+
 const page = () => {
-    
-        const cards = [
-            {
-                key: '1',
-                title: 'Total Listings',
-                amount: '1,284',
-                sub: 'Active listings',
-            },
-            {
-                key: '2',
-                title: 'Completed Transactions',
-                amount: '842',
-                sub: 'Successful trades',
-            },
-            {
-                key: '3',
-                title: 'Total transaction value',
-                amount: '$2.4M',
-                sub: 'Value of completed trades',
-            },
-            {
-                key: '4',
-                title: 'Active Users',
-                amount: '612',
-                sub: 'Total number of users',
-            },
-        ]
-    
-        const [open, setOpen] = useState(false);
-        const [selected, setSelected] = useState("30 days");
-  return (
- <div className='flex min-h-screen'>
-             <SideBar />
-             <div className='flex-1 p-6 '>
-  <div className="flex flex-col lg:flex-row justify-between gap-4 mb-4">
+    const { stats, fetchStats } = useListingsStore();
+
+    useEffect(() => {
+        fetchStats();
+    }, []);
+
+    const cards = [
+        {
+            key: '1',
+            title: 'Total Listings',
+            amount: stats?.totalListings.toLocaleString() || "0",
+            sub: 'Active listings',
+        },
+        {
+            key: '2',
+            title: 'Active Listings',
+            amount: stats?.activeListings.toLocaleString() || "0",
+            sub: 'Listings currently live',
+        },
+        {
+            key: '3',
+            title: 'Sold Listings',
+            amount: stats?.soldListings.toLocaleString() || "0",
+            sub: 'Listings sold',
+        },
+        // Placeholder for 4th card since API gives 3 stats
+        {
+            key: '4',
+            title: 'Total Volume',
+            amount: '---',
+            sub: 'Total value',
+        },
+    ]
+
+    const [open, setOpen] = useState(false);
+    const [selected, setSelected] = useState("30 days");
+
+    return (
+        <div className='flex min-h-screen'>
+            <SideBar />
+            <div className='flex-1 p-6 '>
+                <div className="flex flex-col lg:flex-row justify-between gap-4 mb-4">
                     <div>
                         <h1 className="text-3xl font-normal text-[#17181A]">Listings</h1>
                         <p className="text-[#737780]">All listings created by sellers across the platform.</p>
@@ -75,31 +84,31 @@ const page = () => {
 
                     </div>
                 </div>
-                   {/* second sec */}
+                {/* second sec */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 mt-10 mb-20 lg:grid-cols-4 gap-4">
                     {cards.map((card, index) => (
-                     <div className="w-56" key={index}>
-  <div className="h-[110px] rounded-xl border border-gray-200 bg-white p-4 flex flex-col justify-between">
-    <p className="text-sm text-gray-400 flex items-center gap-2">
-     {card.title}
-    </p>
+                        <div className="w-56" key={index}>
+                            <div className="h-[110px] rounded-xl border border-gray-200 bg-white p-4 flex flex-col justify-between">
+                                <p className="text-sm text-gray-400 flex items-center gap-2">
+                                    {card.title}
+                                </p>
 
-    <p className="text-2xl font-semibold text-gray-900">
-      842
-    </p>
-  </div>
+                                <p className="text-2xl font-semibold text-gray-900">
+                                    {card.amount}
+                                </p>
+                            </div>
 
-  <p className="mt-2 text-sm text-gray-400">
-    Successful trades
-  </p>
-</div>
+                            <p className="mt-2 text-sm text-gray-400">
+                                {card.sub}
+                            </p>
+                        </div>
 
                     ))}
                 </div>
-        <TableWithTabs />
+                <TableWithTabs />
+            </div>
         </div>
-    </div>
-  )
+    )
 }
 
 export default page

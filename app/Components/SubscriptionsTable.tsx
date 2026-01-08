@@ -1,66 +1,50 @@
 "use client";
 
 import { Search, XCircle } from "lucide-react";
-import { useState } from "react";
-
-// Dummy data based on the design
-const subscriptions = [
-    {
-        id: "#MH-8832-TR",
-        buyer: "Heritage Atiba",
-        email: "heritage@gmail.com",
-        status: "Active",
-        billingStatus: "Paid",
-        startDate: "Nov 10, 2025",
-        nextBilling: "Nov 10, 2025",
-    },
-    {
-        id: "#MH-8832-TR",
-        buyer: "Heritage Atiba",
-        email: "heritage@gmail.com",
-        status: "Cancelled",
-        billingStatus: "Failed",
-        startDate: "Oct 24, 2024",
-        nextBilling: "Nov 10, 2025",
-    },
-    {
-        id: "#MH-8832-TR",
-        buyer: "Heritage Atiba",
-        email: "heritage@gmail.com",
-        status: "Expired",
-        billingStatus: "Failed",
-        startDate: "Oct 24, 2024",
-        nextBilling: "Nov 10, 2025",
-    },
-    {
-        id: "#MH-8832-TR",
-        buyer: "Heritage Atiba",
-        email: "heritage@gmail.com",
-        status: "Active",
-        billingStatus: "Paid",
-        startDate: "Oct 28, 2024",
-        nextBilling: "Nov 10, 2025",
-    },
-    {
-        id: "#MH-8832-TR",
-        buyer: "Heritage Atiba",
-        email: "heritage@gmail.com",
-        status: "Suspended",
-        billingStatus: "Paid",
-        startDate: "Oct 30, 2024",
-        nextBilling: "Nov 10, 2025",
-    },
-];
+import { useEffect, useState } from "react";
+import useSubscriptionStore from '@/app/store/useSubscriptionStore';
 
 const tabs = [
-    { id: 'all', label: 'All', count: 12 },
-    { id: 'active', label: 'Active', count: 0 },
-    { id: 'cancelled', label: 'Cancelled', count: 3 },
-    { id: 'expired', label: 'Expired', count: 3 },
+    { id: 'all', label: 'All' },
+    { id: 'active', label: 'Active' },
+    { id: 'cancelled', label: 'Cancelled' },
+    { id: 'expired', label: 'Expired' },
 ];
 
 export default function SubscriptionsTable() {
+    const {
+        subscriptions,
+        loading,
+        pagination,
+        fetchSubscriptions,
+        setFilter,
+        cancelSubscription
+    } = useSubscriptionStore();
+
     const [activeTab, setActiveTab] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        setFilter('status', activeTab === 'all' ? '' : activeTab);
+    }, [activeTab]);
+
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            setFilter('search', searchTerm);
+        }, 500);
+        return () => clearTimeout(timeoutId);
+    }, [searchTerm]);
+
+    // Initial fetch
+    useEffect(() => {
+        fetchSubscriptions();
+    }, []);
+
+    const handleCancel = async (id: string) => {
+        if (confirm('Are you sure you want to cancel this subscription?')) {
+            await cancelSubscription(id);
+        }
+    }
 
     const getStatusColor = (status: string) => {
         switch (status.toLowerCase()) {
@@ -88,11 +72,11 @@ export default function SubscriptionsTable() {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`pb-3 text-sm font-medium whitespace-nowrap transition-colors relative ${activeTab === tab.id
-                                    ? 'text-yellow-600 border-b-2 border-yellow-600'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                ? 'text-yellow-600 border-b-2 border-yellow-600'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
-                            {tab.label} ({tab.count})
+                            {tab.label}
                         </button>
                     ))}
                 </div>
@@ -103,13 +87,11 @@ export default function SubscriptionsTable() {
                         <input
                             type="text"
                             placeholder="Search"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
                             className="pl-9 pr-4 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-yellow-600 min-w-[240px]"
                         />
                     </div>
-                    <button className="flex items-center gap-2 border border-gray-200 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                        <XCircle size={16} />
-                        Cancel Subscription
-                    </button>
                 </div>
             </div>
 
@@ -132,36 +114,67 @@ export default function SubscriptionsTable() {
                     </thead>
 
                     <tbody className="divide-y divide-gray-100">
-                        {subscriptions.map((item, index) => (
-                            <tr
-                                key={index}
-                                className="hover:bg-gray-50 group"
-                            >
-                                <td className="py-4 px-4">
-                                    <input type="checkbox" className="rounded border-gray-300 text-yellow-600 focus:ring-yellow-600" />
-                                </td>
-                                <td className="py-4 px-4">
-                                    <div className="font-medium text-gray-900">{item.buyer}</div>
-                                    <div className="text-gray-500 text-xs mt-0.5">{item.email}</div>
-                                </td>
-                                <td className="py-4 px-4 font-medium text-gray-900">{item.id}</td>
-                                <td className={`py-4 px-4 font-medium ${getStatusColor(item.status)}`}>
-                                    {item.status}
-                                </td>
-                                <td className="py-4 px-4 text-gray-900">{item.billingStatus}</td>
-                                <td className="py-4 px-4 text-gray-900">{item.startDate}</td>
-                                <td className="py-4 px-4 text-gray-900">{item.nextBilling}</td>
-                                <td className="py-4 px-4 text-right">
-                                    <button
-                                        className="text-red-500 border border-red-500 hover:bg-red-50 text-xs px-4 py-1.5 rounded transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                </td>
+                        {loading ? (
+                            <tr>
+                                <td colSpan={8} className="text-center py-8 text-gray-500">Loading subscriptions...</td>
                             </tr>
-                        ))}
+                        ) : subscriptions.length === 0 ? (
+                            <tr>
+                                <td colSpan={8} className="text-center py-8 text-gray-500">No subscriptions found</td>
+                            </tr>
+                        ) : (
+                            subscriptions.map((item, index) => (
+                                <tr
+                                    key={index}
+                                    className="hover:bg-gray-50 group"
+                                >
+                                    <td className="py-4 px-4">
+                                        <input type="checkbox" className="rounded border-gray-300 text-yellow-600 focus:ring-yellow-600" />
+                                    </td>
+                                    <td className="py-4 px-4">
+                                        <div className="font-medium text-gray-900">{item.buyer_name}</div>
+                                        <div className="text-gray-500 text-xs mt-0.5">{item.buyer_email}</div>
+                                    </td>
+                                    <td className="py-4 px-4 font-medium text-gray-900">{item.id}</td>
+                                    <td className={`py-4 px-4 font-medium ${getStatusColor(item.status)}`}>
+                                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                                    </td>
+                                    <td className="py-4 px-4 text-gray-900">{item.billing_status}</td>
+                                    <td className="py-4 px-4 text-gray-900">{item.start_date}</td>
+                                    <td className="py-4 px-4 text-gray-900">{item.next_billing_date}</td>
+                                    <td className="py-4 px-4 text-right">
+                                        <button
+                                            onClick={() => handleCancel(item.id)}
+                                            className="text-red-500 border border-red-500 hover:bg-red-50 text-xs px-4 py-1.5 rounded transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
+            </div>
+            {/* Pagination */}
+            <div className="p-4 border-t border-gray-200 text-xs text-gray-500 flex justify-between items-center">
+                <span>Showing {(pagination.page - 1) * pagination.limit + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}</span>
+                <div className="flex gap-1">
+                    <button
+                        disabled={pagination.page <= 1}
+                        onClick={() => fetchSubscriptions(pagination.page - 1)}
+                        className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
+                    >
+                        Prev
+                    </button>
+                    <button
+                        disabled={pagination.page >= pagination.totalPages}
+                        onClick={() => fetchSubscriptions(pagination.page + 1)}
+                        className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
+                    >
+                        Next
+                    </button>
+                </div>
             </div>
         </div>
     );

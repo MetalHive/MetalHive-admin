@@ -1,114 +1,73 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Search } from "lucide-react"
+import usePayoutsStore from "@/app/store/usePayoutsStore"
 
-type Listing = {
-  id: string
-  name: string
-  email: string
-  status: "Paid" | "Pending" | "Failed"
-  dateJoined: string
-  amount: number
-  paymentMethod: string
-}
+const PayoutTable = () => {
+  const {
+    transactions,
+    loading,
+    pagination,
+    filters,
+    fetchPayouts,
+    setFilter,
+  } = usePayoutsStore();
 
-const listings: Listing[] = [
-  {
-    id: "#MH-8832-TR",
-    name: "John Doe",
-    email: "john.doe@email.com",
-    status: "Paid",
-    amount: 250000,
-    paymentMethod: "Card",
-    dateJoined: "2024-06-12",
-  },
-  {
-    id: "#MH-7714-TR",
-    name: "Amaka Okorie",
-    email: "amaka.okorie@email.com",
-    status: "Pending",
-    amount: 180000,
-    paymentMethod: "Bank Transfer",
-    dateJoined: "2024-08-03",
-  },
-  {
-    id: "#MH-6621-TR",
-    name: "David Musa",
-    email: "david.musa@email.com",
-    status: "Failed",
-    amount: 320000,
-    paymentMethod: "Wallet",
-    dateJoined: "2023-11-21",
-  },
-  {
-    id: "#MH-5409-TR",
-    name: "Sarah Johnson",
-    email: "sarah.johnson@email.com",
-    status: "Paid",
-    amount: 150000,
-    paymentMethod: "Card",
-    dateJoined: "2024-02-14",
-  },
-  {
-    id: "#MH-3127-TR",
-    name: "Michael Brown",
-    email: "michael.brown@email.com",
-    status: "Pending",
-    amount: 500000,
-    paymentMethod: "Bank Transfer",
-    dateJoined: "2023-05-09",
-  },
-]
-
-const ListingsDashboard = () => {
- const [activeTab, setActiveTab] = useState<
-  "all" | "pending" | "paid" | "failed"
->("all")
+  const [activeTab, setActiveTab] = useState<
+    "all" | "pending" | "completed" | "failed"
+  >("all")
 
   const [searchQuery, setSearchQuery] = useState("")
 
-  const pendingListings = listings.filter(l => l.status === "Pending")
-  const paidListings = listings.filter(l => l.status === "Paid")
-  const failedListings = listings.filter(l => l.status === "Failed")
+  useEffect(() => {
+    // Map tab to status filter
+    const status = activeTab === 'all' ? '' : activeTab;
+    setFilter('status', status);
+  }, [activeTab]);
 
-const displayedListings =
-  activeTab === "all"
-    ? listings
-    : activeTab === "pending"
-    ? pendingListings
-    : activeTab === "paid"
-    ? paidListings
-    : failedListings
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setFilter('search', searchQuery);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
+  useEffect(() => {
+    fetchPayouts();
+  }, [])
+
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'bg-green-100 text-green-700';
+      case 'pending': return 'bg-yellow-100 text-yellow-700';
+      case 'failed': return 'bg-red-100 text-red-700';
+      case 'processing': return 'bg-blue-100 text-blue-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  }
 
   return (
     <div className="min-h-screen p-4 mt-2">
       <div className="max-w-7xl mx-auto bg-white rounded-lg border border-gray-200">
-        
+
         {/* Tabs + Search */}
-        <div className="flex justify-between items-center px-4 border border-t-0 border-b-gray-200 border-l-[#EFEFEF] border-r-[#EFEFEF]"
->
-         <div className="flex py-4 ">
-  {[
-    { key: "all", label: "All", count: listings.length },
-    { key: "pending", label: "Pending", count: pendingListings.length },
-    { key: "paid", label: "Paid", count: paidListings.length },
-    { key: "failed", label: "Failed", count: failedListings.length },
-  ].map(tab => (
-    <button
-      key={tab.key}
-      onClick={() => setActiveTab(tab.key as any)}
-      className={`px-6 py-3 text-sm font-medium border-b-2 ${
-        activeTab === tab.key
-          ? "border-[#C9A227] text-black"
-          : "border-transparent text-gray-500 hover:text-gray-700"
-      }`}
-    >
-      {tab.label} ({tab.count})
-    </button>
-  ))}
-</div>
+        <div className="flex justify-between items-center px-4 border border-t-0 border-b-gray-200 border-l-[#EFEFEF] border-r-[#EFEFEF]">
+          <div className="flex py-4 gap-4">
+            {['all', 'pending', 'completed', 'failed'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab as any)}
+                className={`px-6 py-3 text-sm font-medium border-b-2 capitalize ${activeTab === tab
+                    ? "border-[#C9A227] text-black"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
 
 
           <div className="relative w-64">
@@ -134,61 +93,73 @@ const displayedListings =
         </div>
 
         {/* Rows */}
-            <div className="divide-y divide-[#EFEFEF]">
-          {displayedListings.map(listing => (
-            <div
-              key={listing.id}
-              className="grid grid-cols-[2.8fr_2fr_2fr_1.5fr_2fr_2fr] gap-10 px-4 py-4 hover:bg-gray-50 "
-            >
-              {/* Payout ID */}
-              <div className="font-medium text-gray-900 pr-6">
-                {listing.id}
+        <div className="divide-y divide-[#EFEFEF]">
+          {loading ? (
+            <div className="py-12 text-center text-gray-500">Loading payouts...</div>
+          ) : transactions.length === 0 ? (
+            <div className="py-12 text-center text-gray-500">No payouts found</div>
+          ) : (
+            transactions.map(listing => (
+              <div
+                key={listing.id}
+                className="grid grid-cols-[2.8fr_2fr_2fr_1.5fr_2fr_2fr] gap-10 px-4 py-4 hover:bg-gray-50 "
+              >
+                {/* Payout ID */}
+                <div className="font-medium text-gray-900 pr-6">
+                  {listing.id}
+                </div>
+
+                {/* Seller */}
+                <div>
+                  <p className="font-medium text-gray-900">{listing.seller_name}</p>
+                  {/* <p className="text-sm text-gray-500">{listing.email}</p> Email might not be in response, check store type */}
+                </div>
+
+                {/* Amount */}
+                <div className="font-medium">
+                  ₦{listing.amount.toLocaleString()}
+                </div>
+
+                {/* Status */}
+                <div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${getStatusColor(listing.status)}`}>
+                    {listing.status}
+                  </span>
+                </div>
+
+                {/* Payment Method */}
+                <div className="capitalize">{listing.method?.replace('_', ' ')}</div>
+
+                {/* Date */}
+                <div>{listing.request_date}</div>
               </div>
-
-              {/* Seller */}
-              <div>
-                <p className="font-medium text-gray-900">{listing.name}</p>
-                <p className="text-sm text-gray-500">{listing.email}</p>
-              </div>
-
-              {/* Amount */}
-              <div className="font-medium">
-                ₦{listing.amount.toLocaleString()}
-              </div>
-
-              {/* Status */}
-              <div>
-                <span
-                  className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    listing.status === "Paid"
-                      ? "bg-green-100 text-green-700"
-                      : listing.status === "Pending"
-                      ? "bg-yellow-100 text-yellow-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {listing.status}
-                </span>
-              </div>
-
-              {/* Payment Method */}
-              <div>{listing.paymentMethod}</div>
-
-              {/* Date */}
-              <div>{listing.dateJoined}</div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
-        {/* Empty State */}
-        {displayedListings.length === 0 && (
-          <div className="py-12 text-center text-gray-500">
-            No {activeTab} payouts found
+        {/* Pagination */}
+        <div className="p-4 border-t border-gray-200 text-xs text-gray-500 flex justify-between items-center">
+          <span>Showing {(pagination.page - 1) * pagination.limit + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}</span>
+          <div className="flex gap-1">
+            <button
+              disabled={pagination.page <= 1}
+              onClick={() => fetchPayouts(pagination.page - 1)}
+              className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <button
+              disabled={pagination.page >= pagination.totalPages}
+              onClick={() => fetchPayouts(pagination.page + 1)}
+              className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
+            >
+              Next
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
 }
 
-export default ListingsDashboard
+export default PayoutTable

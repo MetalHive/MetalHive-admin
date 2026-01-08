@@ -31,7 +31,7 @@ export default function SideBar() {
         },
         {
             label: "Buyer Verification",
-            href: "/dashboard/buyer-verification",
+            href: "/dashboard/verification",
             icon: ShieldCheck,
         },
         {

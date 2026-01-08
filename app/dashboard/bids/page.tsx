@@ -3,34 +3,40 @@
 import SideBar from "@/app/Components/Sidebar";
 import StatsCard from "@/app/Components/StatsCard";
 import BidsTable from "@/app/Components/BidsTable";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Calendar, Gavel, FileText, CheckCircle } from "lucide-react";
+import useBidsStore from "@/app/store/useBidsStore";
 
 export default function BidsPage() {
     const [dateFilter, setDateFilter] = useState("Last 30 days");
 
-    const stats = [
+    const { stats, fetchStats } = useBidsStore();
+    useEffect(() => {
+        fetchStats();
+    }, []);
+
+    const cards = [
         {
             title: "Total Bids",
-            value: "1,240",
+            value: stats?.totalBids.toLocaleString() || "0",
             icon: <Gavel size={18} />,
             subtitle: "All time bids",
         },
         {
             title: "Review Pending",
-            value: "45",
+            value: stats?.reviewPendingCount.toLocaleString() || "0",
             icon: <FileText size={18} />,
             subtitle: "Needs attention",
         },
         {
             title: "Accepted Bids",
-            value: "850",
+            value: stats?.acceptedBidsCount.toLocaleString() || "0",
             icon: <CheckCircle size={18} />,
             subtitle: "Successful offers",
         },
         {
             title: "Total Value",
-            value: "$4.2M",
+            value: `$${(stats?.totalValue || 0).toLocaleString()}`,
             icon: null,
             subtitle: "Gross transaction volume",
         },
@@ -58,7 +64,7 @@ export default function BidsPage() {
 
                     {/* Stats Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                        {stats.map((stat, index) => (
+                        {cards.map((stat, index) => (
                             <StatsCard
                                 key={index}
                                 title={stat.title}
