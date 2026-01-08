@@ -101,6 +101,7 @@ const UserProfile = () => {
               </div>
 
               <div className="flex items-center gap-3">
+<<<<<<< HEAD
                 {userDetails.status !== 'suspended' ? (
                   <button
                     onClick={() => handleStatusChange('suspended')}
@@ -123,6 +124,15 @@ const UserProfile = () => {
                   onClick={handleDelete}
                   className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
                 >
+=======
+                <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                   onClick={() => setModalType("SUSPEND_ACCOUNT")}>
+                  <Shield className="w-4 h-4" />
+                  Suspend Account
+                </button>
+                <button className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
+                   onClick={() => setModalType("DELETE_LISTING")}>
+>>>>>>> 859b2a077a31bef22ef788d729fc99da966f787b
                   <Trash2 className="w-4 h-4" />
                   Delete Account
                 </button>
@@ -171,6 +181,13 @@ const UserProfile = () => {
           <p className="text-gray-500 italic">User specific listings view coming soon.</p>
         </div>
       </div>
+          {modalType && (
+              <Modal
+                type={modalType}
+                isOpen={true}
+                onClose={() => setModalType(null)}
+              />
+            )}
     </div>
   );
 }

@@ -1,9 +1,11 @@
 'use client'
 import { useState } from 'react';
-import {  Star, MapPin, Package, Scale } from 'lucide-react';
+import { Star, MapPin, Package, Scale } from 'lucide-react';
 import Link from 'next/link'
 import { FaArrowLeftLong } from "react-icons/fa6";
 import TopBar from '@/app/Components/TopBar'
+import BidsOverviewTable from '@/app/Components/Bidsoverview';
+import { Modal } from '@/app/Components/Modal';
 interface ListingData {
     id: string;
     title: string;
@@ -43,6 +45,7 @@ const sampleListing: ListingData = {
 
 const ScrapMetalListing: React.FC<{ data?: ListingData }> = ({ data = sampleListing }) => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [modalType, setModalType] = useState<string | null>(null);
 
     return (
         <div className="">
@@ -52,10 +55,10 @@ const ScrapMetalListing: React.FC<{ data?: ListingData }> = ({ data = sampleList
                 <button className=" text-gray-600 mb-4 hover:text-gray-900">
                     <FaArrowLeftLong className="w-5 h-5" />
                 </button>
-                <div className="grid md:grid-cols-10 gap-8 p-6 border">
+                <div className="grid md:grid-cols-10 gap-8 p-6 ">
                     {/* Left Column - Images */}
                     <div className=' col-span-5'>
-                                            
+
                         {/* Product Title and Date */}
                         <div className='mb-10'>
                             <h1 className="text-2xl font-bold mb-1">{data.title}</h1>
@@ -72,32 +75,32 @@ const ScrapMetalListing: React.FC<{ data?: ListingData }> = ({ data = sampleList
                             </div>
 
                             {/* Details Grid */}
-                           <div>
-                            <h3 className='text-gray-500 mb-2'>Seller Information</h3>
-                             <div className="grid grid-cols-3 gap-4">
-                                <div className="flex items-start gap-2">
-                                    <Package className="w-5 h-5 text-gray-400 mt-0.5" />
-                                    <div>
-                                        <p className="text-xs text-gray-500">Offer</p>
-                                        <p className="text-sm font-semibold">${data.price.toFixed(2)}</p>
+                            <div>
+                                <h3 className='text-gray-500 mb-2'>Seller Information</h3>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="flex items-start gap-2">
+                                        <Package className="w-5 h-5 text-gray-400 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs text-gray-500">Offer</p>
+                                            <p className="text-sm font-semibold">${data.price.toFixed(2)}</p>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="flex items-start gap-2">
-                                    <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
-                                    <div>
-                                        <p className="text-xs text-gray-500">Location</p>
-                                        <p className="text-sm font-semibold">{data.location}, UK</p>
+                                    <div className="flex items-start gap-2">
+                                        <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs text-gray-500">Location</p>
+                                            <p className="text-sm font-semibold">{data.location}, UK</p>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="flex items-start gap-2">
-                                    <Scale className="w-5 h-5 text-gray-400 mt-0.5" />
-                                    <div>
-                                        <p className="text-xs text-gray-500">Weight</p>
-                                        <p className="text-sm font-semibold">{data.quantity}</p>
+                                    <div className="flex items-start gap-2">
+                                        <Scale className="w-5 h-5 text-gray-400 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs text-gray-500">Weight</p>
+                                            <p className="text-sm font-semibold">{data.quantity}</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                           </div>
                         </div>
                         {/* Image Carousel */}
                         <div className="relative rounded-lg overflow-hidden bg-gray-100 mb-4">
@@ -114,8 +117,8 @@ const ScrapMetalListing: React.FC<{ data?: ListingData }> = ({ data = sampleList
                                         key={index}
                                         onClick={() => setCurrentImageIndex(index)}
                                         className={`w-2 h-2 rounded-full transition-all ${index === currentImageIndex
-                                                ? 'bg-white w-6'
-                                                : 'bg-white/50'
+                                            ? 'bg-white w-6'
+                                            : 'bg-white/50'
                                             }`}
                                     />
                                 ))}
@@ -138,8 +141,8 @@ const ScrapMetalListing: React.FC<{ data?: ListingData }> = ({ data = sampleList
                                     <Star
                                         key={i}
                                         className={`w-4 h-4 ${i < data.rating
-                                                ? 'fill-black text-black'
-                                                : 'fill-gray-200 text-gray-200'
+                                            ? 'fill-black text-black'
+                                            : 'fill-gray-200 text-gray-200'
                                             }`}
                                     />
                                 ))}
@@ -167,11 +170,11 @@ const ScrapMetalListing: React.FC<{ data?: ListingData }> = ({ data = sampleList
                                 <span className="text-sm text-gray-600">Location</span>
                                 <span className="text-sm font-medium">{data.location}</span>
                             </div>
-                             <div className="flex justify-between py-3 border-b border-gray-100">
+                            <div className="flex justify-between py-3 border-b border-gray-100">
                                 <span className="text-sm text-gray-600">Listing Id</span>
                                 <span className="text-sm font-medium">{data.listingId}</span>
                             </div>
-                             <div className="flex justify-between py-3 border-b border-gray-100">
+                            <div className="flex justify-between py-3 border-b border-gray-100">
                                 <span className="text-sm text-gray-600">Created On</span>
                                 <span className="text-sm font-medium">{data.createdDate}</span>
                             </div>
@@ -179,23 +182,30 @@ const ScrapMetalListing: React.FC<{ data?: ListingData }> = ({ data = sampleList
 
                         {/* Action Buttons */}
                         <div className="space-y-3">
-                            <Link
-                                href={``}
-                                className="block"
-                            >
-                                <button className="w-full bg-[#C9A227] hover:bg-yellow-600 text-white font-semibold py-3 rounded-lg transition-colors">
-                                    Reinstate Listing
-                                </button>
-                            </Link>
-                           
-                                    <button className=" w-full hover:bg-[#FF0000] hover:text-white font-semibold py-3 text-sm border text-[#FF0000] border-[#FF0000] rounded-md">
-  Delete listing
-</button>
 
+
+                            <button className=" w-full hover:bg-white bg-[#FF0000] hover:text-[#FF0000] text-white font-semibold py-3  border  hover:border-[#FF0000] rounded-md" 
+                             onClick={() => setModalType("DELETE_LISTING")}>
+                                Delete listing
+                            </button>
+                           
+                                <button className="w-full bg-[#C9A227] hover:bg-yellow-600 text-white font-semibold py-3 rounded-lg transition-colors"
+                                 onClick={() => setModalType("SUSPEND_LISTING")}>
+                                    Suspend Listing
+                                </button>
+                           
                         </div>
                     </div>
                 </div>
+                <BidsOverviewTable />
             </div>
+               {modalType && (
+        <Modal
+          type={modalType}
+          isOpen={true}
+          onClose={() => setModalType(null)}
+        />
+      )}
         </div>
     );
 };
