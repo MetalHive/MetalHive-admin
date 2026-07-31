@@ -1,17 +1,22 @@
 import { create } from 'zustand';
 import api from '@/app/lib/api';
 
-interface Bid {
+export interface Bid {
     id: string;
     listing_id: string;
     listing_title: string;
     buyer: {
+        id: number;
         name: string;
+        company: string | null;
         email: string;
     };
     amount: number;
+    offer_price_unit: string;
+    total_amount: string | null;
+    quantity: string;
     date: string;
-    status: 'pending' | 'accepted' | 'rejected';
+    status: 'pending' | 'accepted' | 'rejected' | 'countered' | 'withdrawn' | 'expired';
 }
 
 interface BidsState {
@@ -35,7 +40,9 @@ interface BidsState {
         search: string;
     };
 
+    current: Bid | null;
     fetchBids: (page?: number) => Promise<void>;
+    fetchBid: (id: string) => Promise<void>;
     fetchStats: () => Promise<void>;
     updateBidStatus: (id: string, status: 'accepted' | 'rejected') => Promise<void>;
     setFilter: (key: string, value: string) => void;
@@ -43,6 +50,7 @@ interface BidsState {
 
 const useBidsStore = create<BidsState>((set, get) => ({
     bids: [],
+    current: null,
     stats: null,
     loading: false,
     error: null,
@@ -82,6 +90,19 @@ const useBidsStore = create<BidsState>((set, get) => ({
             set({
                 error: error.response?.data?.message || 'Failed to fetch bids',
                 loading: false
+            });
+        }
+    },
+
+    fetchBid: async (id: string) => {
+        set({ loading: true, error: null, current: null });
+        try {
+            const response = await api.get(`/admin/bids/${id}`);
+            set({ current: response.data.data, loading: false });
+        } catch (error: any) {
+            set({
+                error: error.response?.data?.message || 'Failed to load bid',
+                loading: false,
             });
         }
     },

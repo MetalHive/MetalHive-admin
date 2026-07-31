@@ -1,6 +1,7 @@
 "use client";
 
 import { Search, Eye } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import useBidsStore from "@/app/store/useBidsStore";
 
@@ -99,7 +100,7 @@ export default function BidsTable() {
                                 <input type="checkbox" className="rounded border-gray-300 text-yellow-600 focus:ring-yellow-600" />
                             </th>
                             <th className="py-3 px-4 font-medium text-gray-500">Buyer</th>
-                            <th className="py-3 px-4 font-medium text-gray-500">Listing ID</th>
+                            <th className="py-3 px-4 font-medium text-gray-500">Listing</th>
                             <th className="py-3 px-4 font-medium text-gray-500">Bid Amount</th>
                             <th className="py-3 px-4 font-medium text-gray-500">Date</th>
                             <th className="py-3 px-4 font-medium text-gray-500">Status</th>
@@ -125,20 +126,40 @@ export default function BidsTable() {
                                     <td className="py-4 px-4">
                                         <input type="checkbox" className="rounded border-gray-300 text-yellow-600 focus:ring-yellow-600" />
                                     </td>
-                                    <td className="py-4 px-4 font-medium text-gray-900">{item.buyer.name}</td>
-                                    <td className="py-4 px-4 text-gray-600">{item.listing_id}</td>
-                                    <td className="py-4 px-4 font-medium text-gray-900">${item.amount}</td>
+                                    <td className="py-4 px-4">
+                                        <p className="font-medium text-gray-900">{item.buyer?.name || '—'}</p>
+                                        {item.buyer?.company && (
+                                            <p className="text-xs text-gray-500">{item.buyer.company}</p>
+                                        )}
+                                    </td>
+                                    <td className="py-4 px-4 text-gray-600">
+                                        <p>{item.listing_title || item.listing_id}</p>
+                                        <p className="text-xs text-gray-400">{item.listing_id}</p>
+                                    </td>
+                                    <td className="py-4 px-4">
+                                        <p className="font-medium text-gray-900">
+                                            ${Number(item.amount).toLocaleString()}
+                                            <span className="text-xs font-normal text-gray-500">/{item.offer_price_unit}</span>
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                            {item.quantity} &middot; total{' '}
+                                            {item.total_amount != null
+                                                ? `$${Number(item.total_amount).toLocaleString()}`
+                                                : '—'}
+                                        </p>
+                                    </td>
                                     <td className="py-4 px-4 text-gray-600">{item.date}</td>
                                     <td className={`py-4 px-4 font-medium ${getStatusColor(item.status)}`}>
                                         {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                                     </td>
                                     <td className="py-4 px-4 text-right">
-                                        <button
-                                            className="text-gray-600 hover:text-yellow-600 hover:bg-yellow-50 border border-gray-200 hover:border-yellow-200 text-xs px-3 py-1.5 rounded transition-all flex items-center gap-1 ml-auto"
+                                        <Link
+                                            href={`/dashboard/bids/${encodeURIComponent(item.id)}`}
+                                            className="text-gray-600 hover:text-yellow-600 hover:bg-yellow-50 border border-gray-200 hover:border-yellow-200 text-xs px-3 py-1.5 rounded transition-all inline-flex items-center gap-1 ml-auto w-fit"
                                         >
                                             <Eye size={14} />
                                             View
-                                        </button>
+                                        </Link>
                                     </td>
                                 </tr>
                             ))

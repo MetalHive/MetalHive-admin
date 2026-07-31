@@ -97,14 +97,21 @@ const UserTable = () => {
                     </div>
 
 
-                    {/* Table Header */}
-                    <div className="grid grid-cols-[2.5fr_1.5fr_2fr_2fr_2fr_2fr] gap-4 px-4 py-6 border-b border-gray-200 text-sm font-medium text-gray-600">
+                    {/* Table Header.
+                        The checkbox gets its own fixed column so every heading
+                        sits directly above its cell — previously the rows had a
+                        checkbox inside the first column and the header did not,
+                        which pushed every column out of alignment. */}
+                    <div className="grid grid-cols-[32px_2.5fr_1.5fr_2fr_2fr_2fr_2fr] items-center gap-4 px-4 py-4 border-b border-gray-200 text-sm font-medium text-gray-600">
+                        <div>
+                            <input type="checkbox" className="w-4 h-4 rounded border-gray-300 align-middle" />
+                        </div>
                         <div>User</div>
                         <div>User Type</div>
                         <div>Status</div>
                         <div>Date Joined</div>
                         <div>Last Active</div>
-                        <div>Actions</div>
+                        <div className="text-right">Actions</div>
                     </div>
 
                     {/* Table Rows */}
@@ -117,15 +124,19 @@ const UserTable = () => {
                             users.map((listing) => (
                                 <div
                                     key={listing.id}
-                                    className="grid grid-cols-[2.5fr_1.5fr_2fr_2fr_2fr_2fr] gap-4 px-4 py-4 hover:bg-gray-50 transition-colors"
+                                    className="grid grid-cols-[32px_2.5fr_1.5fr_2fr_2fr_2fr_2fr] items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors"
                                 >
+                                    {/* Select */}
+                                    <div>
+                                        <input type="checkbox" className="w-4 h-4 rounded border-gray-300 align-middle" />
+                                    </div>
+
                                     {/* User */}
-                                    <div className='flex items-center gap-2'>
-                                        <input type="checkbox" className="w-4 h-4 rounded border-gray-300" />
-                                        <div>
-                                            <p className="font-medium text-gray-900">{listing.first_name} {listing.last_name}</p>
-                                            <p className="text-sm text-gray-500 truncate">{listing.email}</p>
-                                        </div>
+                                    <div className="min-w-0">
+                                        <p className="font-medium text-gray-900 truncate">
+                                            {listing.name || `${listing.first_name} ${listing.last_name}`.trim() || listing.email}
+                                        </p>
+                                        <p className="text-sm text-gray-500 truncate">{listing.email}</p>
                                     </div>
 
                                     {/* User Type */}
@@ -142,10 +153,10 @@ const UserTable = () => {
                                     </div>
 
                                     {/* Date Joined */}
-                                    <div>{listing.date_joined}</div>
+                                    <div>{listing.date_joined || '—'}</div>
 
                                     {/* Last Active */}
-                                    <div>{listing.last_login}</div>
+                                    <div>{listing.last_login || '—'}</div>
 
                                     {/* Actions */}
                                     <div className="flex items-center justify-end gap-2">

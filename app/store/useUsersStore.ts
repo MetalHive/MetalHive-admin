@@ -3,6 +3,8 @@ import api from '@/app/lib/api';
 
 interface User {
     id: string;
+    name: string;
+    company_name: string | null;
     first_name: string;
     last_name: string;
     email: string;

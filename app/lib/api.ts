@@ -1,7 +1,15 @@
 import axios from 'axios';
 
+// NEXT_PUBLIC_API_URL is the server root (e.g. http://localhost:8001). Every
+// backend route lives under /api, and Django serves its own admin site at
+// /admin — so omitting the prefix sent calls like /admin/listings to Django's
+// admin login and returned a 302 instead of JSON. Tolerate either form.
+const API_ROOT = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001')
+    .replace(/\/+$/, '')
+    .replace(/\/api$/, '');
+
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || '/api',
+    baseURL: `${API_ROOT}/api`,
     headers: {
         'Content-Type': 'application/json',
     },

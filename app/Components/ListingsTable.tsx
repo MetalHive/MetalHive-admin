@@ -12,7 +12,9 @@ export default function ListingsTable() {
         pagination,
         fetchListings,
         setFilter,
-        deleteListing
+        deleteListing,
+        suspendListing,
+        reinstateListing
     } = useListingsStore();
 
     const [open, setOpen] = useState(false);
@@ -33,9 +35,15 @@ export default function ListingsTable() {
     }, []);
 
     const handleDelete = async (id: string) => {
-        if (confirm('Are you sure you want to delete this listing?')) {
+        if (confirm('Delete this listing? It will be removed from the marketplace and every admin view.')) {
             await deleteListing(id);
         }
+    }
+
+    const handleSuspend = async (id: string) => {
+        const reason = prompt('Reason for suspending this listing (shown to the seller):');
+        if (reason === null) return; // cancelled
+        await suspendListing(id, reason);
     }
 
     return (
@@ -130,29 +138,65 @@ export default function ListingsTable() {
                                     <td className="py-6 px-2">{item.created_date}</td>
                                     <td className="py-6 px-2 font-medium">{item.material_name}</td>
                                     <td className="py-6 px-2">{item.seller_name}</td>
-                                    <td className="py-6 px-2 font-medium">₦{item.price.toLocaleString()} /{item.price_unit}</td>
-                                    <td className="py-6 px-2">{item.quantity}</td>
+                                    <td className="py-6 px-2">
+                                        <p className="font-medium">
+                                            ${Number(item.price).toLocaleString()} /{item.price_unit}
+                                        </p>
+                                        {item.price_per_kg && (
+                                            <p className="text-xs text-gray-500">
+                                                ${Number(item.price_per_kg).toLocaleString()} /kg
+                                            </p>
+                                        )}
+                                    </td>
+                                    <td className="py-6 px-2">
+                                        <p>{item.quantity}</p>
+                                        {item.total_value && (
+                                            <p className="text-xs text-gray-500">
+                                                lot ${Number(item.total_value).toLocaleString()}
+                                            </p>
+                                        )}
+                                    </td>
                                     <td className="py-6 px-2">
                                         <span className={`px-2 py-1 rounded text-xs ${item.status === 'active' ? 'bg-green-100 text-green-800' :
-                                                item.status === 'sold' ? 'bg-blue-100 text-blue-800' :
+                                            item.status === 'sold' ? 'bg-blue-100 text-blue-800' :
+                                                item.status === 'suspended' ? 'bg-red-100 text-red-800' :
                                                     'bg-gray-100 text-gray-800'
                                             }`}>
                                             {item.status.toUpperCase()}
                                         </span>
                                     </td>
-                                    <td className="py-6 px-2 flex gap-2">
-                                        <Link
-                                            className="bg-[#C9A227] text-white text-xs px-4 py-2 rounded-md"
-                                            href={`/dashboard/listings/${encodeURIComponent(item.id)}`}
-                                        >
-                                            View
-                                        </Link>
-                                        <button
-                                            onClick={() => handleDelete(item.id)}
-                                            className="text-red-500 hover:text-red-700"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
+                                    <td className="py-6 px-2">
+                                        <div className="flex items-center gap-2">
+                                            <Link
+                                                className="bg-[#C9A227] text-white text-xs px-4 py-2 rounded-md"
+                                                href={`/dashboard/listings/${encodeURIComponent(item.id)}`}
+                                            >
+                                                View
+                                            </Link>
+                                            {item.status === 'suspended' ? (
+                                                <button
+                                                    onClick={() => reinstateListing(item.id)}
+                                                    className="text-xs border border-green-300 text-green-700 px-3 py-2 rounded-md hover:bg-green-50"
+                                                >
+                                                    Reinstate
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleSuspend(item.id)}
+                                                    disabled={item.status === 'sold'}
+                                                    className="text-xs border border-gray-300 px-3 py-2 rounded-md hover:bg-gray-50 disabled:opacity-40"
+                                                >
+                                                    Suspend
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => handleDelete(item.id)}
+                                                className="text-red-500 hover:text-red-700"
+                                                aria-label="Delete listing"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))
