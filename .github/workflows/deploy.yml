@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  APP_DIR: /opt/metal-admin
+  APP_DIR: /opt/metalhive/admin
   SERVICE: metal-admin
 
 jobs:
