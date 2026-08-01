@@ -1,0 +1,81 @@
+name: Deploy admin
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-admin
+  cancel-in-progress: false
+
+env:
+  APP_DIR: /opt/metal-admin
+  SERVICE: metal-admin
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # NEXT_PUBLIC_* values are inlined into the client bundle at build time,
+      # so they must be set here rather than on the droplet.
+      - name: Build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.metalhive.ca
+        run: npm run build
+
+      # standalone omits these two by design; the server 404s without them.
+      - name: Assemble standalone bundle
+        run: |
+          cp -r public .next/standalone/public
+          mkdir -p .next/standalone/.next
+          cp -r .next/static .next/standalone/.next/static
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      # Ship to a staging path, then swap directories, so a failed transfer
+      # never leaves the live app half-written.
+      - name: Upload build
+        run: |
+          rsync -az --delete -e "ssh -i ~/.ssh/id_ed25519" \
+            .next/standalone/ \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${APP_DIR}.incoming/
+
+      - name: Activate and restart
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -euo pipefail <<EOF
+            rm -rf ${APP_DIR}.old
+            [ -d ${APP_DIR} ] && mv ${APP_DIR} ${APP_DIR}.old
+            mv ${APP_DIR}.incoming ${APP_DIR}
+            sudo -n systemctl restart ${SERVICE}.service
+          EOF
+
+      - name: Verify service is serving
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -euo pipefail <<EOF
+            for i in \$(seq 1 20); do
+              if curl -fsS -o /dev/null http://127.0.0.1:3001/; then
+                echo "admin is up"; exit 0
+              fi
+              sleep 3
+            done
+            echo "health check failed — rolling back"
+            sudo -n systemctl status ${SERVICE}.service --no-pager | tail -30 || true
+            rm -rf ${APP_DIR} && mv ${APP_DIR}.old ${APP_DIR}
+            sudo -n systemctl restart ${SERVICE}.service
+            exit 1
+          EOF
