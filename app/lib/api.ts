@@ -15,6 +15,11 @@ const api = axios.create({
     },
 });
 
+export const clearTokens = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+};
+
 // Request interceptor to add auth token
 api.interceptors.request.use(
     (config) => {
@@ -29,21 +34,63 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle common errors
+// Access tokens live 5 minutes, so without this every admin was thrown back to
+// the login screen mid-task. Refreshes are funnelled through one shared promise
+// so a burst of parallel 401s produces a single refresh call rather than one
+// per request (the extras would fail anyway once the token rotates).
+let refreshPromise: Promise<string> | null = null;
+
+const refreshAccessToken = async (): Promise<string> => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) throw new Error('No refresh token');
+
+    // Bare axios, not `api`: going through the instance would re-enter this
+    // interceptor and loop if the refresh itself 401s.
+    const { data } = await axios.post(
+        `${API_ROOT}/api/auth/token/refresh/`,
+        { refresh: refreshToken },
+        { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    const access = data?.data?.access ?? data?.access;
+    if (!access) throw new Error('Refresh response contained no access token');
+
+    localStorage.setItem('accessToken', access);
+    const rotated = data?.data?.refresh ?? data?.refresh;
+    if (rotated) localStorage.setItem('refreshToken', rotated);
+
+    return access;
+};
+
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
 
-        // Handle 401 Unauthorized (e.g., token expired)
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            // Could implement refresh token logic here if needed
-            // For now, might just clear storage or redirect
-            if (typeof window !== 'undefined') {
-                localStorage.removeItem('accessToken');
-                window.location.href = '/login';
+        if (
+            error.response?.status === 401 &&
+            originalRequest &&
+            !originalRequest._retry &&
+            typeof window !== 'undefined'
+        ) {
+            originalRequest._retry = true;
+
+            try {
+                refreshPromise = refreshPromise ?? refreshAccessToken();
+                const access = await refreshPromise;
+                refreshPromise = null;
+
+                originalRequest.headers.Authorization = `Bearer ${access}`;
+                return api(originalRequest);
+            } catch {
+                refreshPromise = null;
+                clearTokens();
+                if (window.location.pathname !== '/login') {
+                    window.location.href = '/login';
+                }
             }
         }
+
         return Promise.reject(error);
     }
 );

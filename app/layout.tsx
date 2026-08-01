@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { interDisplay } from "./fonts";
 import "./globals.css";
+import AdminGuard from "./Components/AdminGuard";
 
 
 
@@ -22,7 +23,7 @@ export default function RootLayout({
       <body
         className={`${interDisplay.variable}`}
       >
-        {children}
+        <AdminGuard>{children}</AdminGuard>
       </body>
     </html>
   );
