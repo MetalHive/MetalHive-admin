@@ -171,6 +171,9 @@ const useListingsStore = create<ListingsState>((set, get) => ({
             await api.post(`/admin/listings/${id}/suspend`, { reason });
             set({ actionLoading: false });
             if (get().current?.id === id) await get().fetchListing(id);
+            // Refetch the list as deleteListing does; without it the row kept
+            // its old status until the page was reloaded by hand.
+            await get().fetchListings(get().pagination.page);
             await get().fetchStats();
         } catch (error: any) {
             set({
@@ -187,6 +190,7 @@ const useListingsStore = create<ListingsState>((set, get) => ({
             await api.post(`/admin/listings/${id}/reinstate`);
             set({ actionLoading: false });
             if (get().current?.id === id) await get().fetchListing(id);
+            await get().fetchListings(get().pagination.page);
             await get().fetchStats();
         } catch (error: any) {
             set({

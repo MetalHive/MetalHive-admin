@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { interDisplay } from "./fonts";
 import "./globals.css";
 import AdminGuard from "./Components/AdminGuard";
+import { ToastProvider } from "./Components/Toast";
 
 
 
@@ -23,7 +24,9 @@ export default function RootLayout({
       <body
         className={`${interDisplay.variable}`}
       >
-        <AdminGuard>{children}</AdminGuard>
+        <ToastProvider>
+          <AdminGuard>{children}</AdminGuard>
+        </ToastProvider>
       </body>
     </html>
   );

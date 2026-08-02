@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import useVerificationStore, { VerificationRequest } from '@/app/store/useVerificationStore';
+import { useToast } from "@/app/Components/Toast";
 import { Search, XCircle, CheckCircle, AlertCircle } from 'lucide-react';
 
 const VerificationTable = () => {
@@ -14,8 +15,18 @@ const VerificationTable = () => {
         reviewRequest
     } = useVerificationStore();
 
+    const toast = useToast();
     const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
     const [searchQuery, setSearchQuery] = useState('');
+
+    const handleReview = async (id: string | number, action: 'verify' | 'reject') => {
+        try {
+            await reviewRequest(id, action);
+            toast.success(action === 'verify' ? 'Request verified.' : 'Request rejected.');
+        } catch {
+            toast.error(useVerificationStore.getState().error || 'Failed to update request.');
+        }
+    };
 
     useEffect(() => {
         // Map tab to status filter
@@ -139,13 +150,13 @@ const VerificationTable = () => {
                                     {request.status === 'pending' ? (
                                         <>
                                             <button
-                                                onClick={() => reviewRequest(request.id, 'verify')}
+                                                onClick={() => handleReview(request.id, 'verify')}
                                                 className="px-4 py-1.5 bg-[#C9A227] text-white text-sm font-medium rounded hover:bg-[#b08d21] transition-colors"
                                             >
                                                 Review
                                             </button>
                                             <button
-                                                onClick={() => reviewRequest(request.id, 'reject')}
+                                                onClick={() => handleReview(request.id, 'reject')}
                                                 className="px-4 py-1.5 border border-red-500 text-red-500 text-sm font-medium rounded hover:bg-red-50 transition-colors"
                                             >
                                                 Deny

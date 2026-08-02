@@ -6,6 +6,7 @@ import SideBar from "@/app/Components/Sidebar"
 // import ListingsTable from "@/app/Components/userListingTable" // Temporarily commenting out or will use but it might not be connected yet
 import { ChevronLeft, Edit, Shield, Trash2, Loader2 } from 'lucide-react';
 import useUsersStore from '@/app/store/useUsersStore';
+import { useToast } from "@/app/Components/Toast";
 
 const UserProfile = () => {
   const { id } = useParams();
@@ -18,16 +19,26 @@ const UserProfile = () => {
     }
   }, [id]);
 
+  const toast = useToast();
+
   const handleStatusChange = async (status: string) => {
-    if (id && confirm(`Are you sure you want to change user status to ${status}?`)) {
+    if (!id || !confirm(`Are you sure you want to change user status to ${status}?`)) return;
+    try {
       await updateUserStatus(id as string, status);
+      toast.success(`User status changed to ${status}.`);
+    } catch {
+      toast.error(useUsersStore.getState().error || 'Failed to update user status.');
     }
   }
 
   const handleDelete = async () => {
-    if (id && confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+    if (!id || !confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
+    try {
       await deleteUser(id as string);
+      toast.success('User deleted.');
       router.push('/dashboard/users');
+    } catch {
+      toast.error(useUsersStore.getState().error || 'Failed to delete user.');
     }
   }
 

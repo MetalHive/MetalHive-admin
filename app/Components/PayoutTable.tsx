@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Search } from "lucide-react"
 import usePayoutsStore from "@/app/store/usePayoutsStore"
+import { formatCurrency } from '@/app/lib/format';
 
 const PayoutTable = () => {
   const {
@@ -117,7 +118,7 @@ const PayoutTable = () => {
 
                 {/* Amount */}
                 <div className="font-medium">
-                  ₦{listing.amount.toLocaleString()}
+                  {formatCurrency(listing.amount)}
                 </div>
 
                 {/* Status */}

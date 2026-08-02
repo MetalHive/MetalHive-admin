@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ChevronRight, Ban, Check, Gavel } from 'lucide-react';
 import SideBar from '@/app/Components/Sidebar';
 import useBidsStore from '@/app/store/useBidsStore';
+import { useToast } from '@/app/Components/Toast';
 
 const STATUS_STYLES: Record<string, string> = {
     pending: 'bg-orange-50 text-orange-700 border-orange-200',
@@ -56,10 +57,21 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export default function BidDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const { current: bid, loading, error, fetchBid, updateBidStatus } = useBidsStore();
+    const toast = useToast();
 
     useEffect(() => {
         fetchBid(id);
     }, [id]);
+
+    const handleStatus = async (bidId: string, status: 'accepted' | 'rejected') => {
+        try {
+            await updateBidStatus(bidId, status);
+            await fetchBid(id);
+            toast.success(status === 'accepted' ? 'Bid accepted.' : 'Bid rejected.');
+        } catch {
+            toast.error(useBidsStore.getState().error || 'Failed to update bid.');
+        }
+    };
 
     if (loading && !bid) {
         return (
@@ -117,14 +129,14 @@ export default function BidDetailsPage({ params }: { params: Promise<{ id: strin
                         {openForAction && (
                             <div className="flex items-center gap-3">
                                 <button
-                                    onClick={() => updateBidStatus(b.id, 'rejected').then(() => fetchBid(id))}
+                                    onClick={() => handleStatus(b.id, 'rejected')}
                                     className="flex items-center gap-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
                                 >
                                     <Ban size={16} />
                                     Reject Bid
                                 </button>
                                 <button
-                                    onClick={() => updateBidStatus(b.id, 'accepted').then(() => fetchBid(id))}
+                                    onClick={() => handleStatus(b.id, 'accepted')}
                                     className="flex items-center gap-2 bg-[#C9A227] text-white hover:bg-[#b08d20] rounded-lg px-4 py-2 text-sm font-medium transition-colors"
                                 >
                                     <Check size={16} />

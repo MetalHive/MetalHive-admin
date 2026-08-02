@@ -6,6 +6,7 @@ import { FaSortDown } from "react-icons/fa";
 import { RiDeleteBin6Line } from "react-icons/ri";
 import Link from 'next/link';
 import useUsersStore from '@/app/store/useUsersStore';
+import { useToast } from "@/app/Components/Toast";
 
 const UserTable = () => {
     const {
@@ -32,9 +33,15 @@ const UserTable = () => {
         fetchUsers();
     }, []);
 
+    const toast = useToast();
+
     const handleDelete = async (id: string) => {
-        if (confirm('Are you sure you want to delete this user?')) {
+        if (!confirm('Are you sure you want to delete this user?')) return;
+        try {
             await deleteUser(id);
+            toast.success('User deleted.');
+        } catch {
+            toast.error(useUsersStore.getState().error || 'Failed to delete user.');
         }
     }
 

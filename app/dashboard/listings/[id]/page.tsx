@@ -7,6 +7,7 @@ import { MapPin, Package, Scale, ChevronRight } from 'lucide-react';
 import { FaArrowLeftLong } from "react-icons/fa6";
 import TopBar from '@/app/Components/TopBar';
 import BidsOverviewTable from '@/app/Components/Bidsoverview';
+import { useToast } from '@/app/Components/Toast';
 import useListingsStore from '@/app/store/useListingsStore';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -37,6 +38,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
         reinstateListing,
     } = useListingsStore();
 
+    const toast = useToast();
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [suspendReason, setSuspendReason] = useState('');
     const [confirming, setConfirming] = useState<'DELETE' | 'SUSPEND' | null>(null);
@@ -48,9 +50,11 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
     const handleDelete = async () => {
         try {
             await deleteListing(id);
+            toast.success('Listing deleted.');
             router.push('/dashboard/listings');
         } catch {
             setConfirming(null);
+            toast.error(useListingsStore.getState().error || 'Failed to delete listing.');
         }
     };
 
@@ -59,8 +63,19 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
             await suspendListing(id, suspendReason);
             setConfirming(null);
             setSuspendReason('');
+            toast.success('Listing suspended.');
         } catch {
             setConfirming(null);
+            toast.error(useListingsStore.getState().error || 'Failed to suspend listing.');
+        }
+    };
+
+    const handleReinstate = async () => {
+        try {
+            await reinstateListing(id);
+            toast.success('Listing reinstated.');
+        } catch {
+            toast.error(useListingsStore.getState().error || 'Failed to reinstate listing.');
         }
     };
 
@@ -245,7 +260,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
                             {listing.status === 'suspended' ? (
                                 <button
                                     disabled={actionLoading}
-                                    onClick={() => reinstateListing(id)}
+                                    onClick={handleReinstate}
                                     className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50"
                                 >
                                     {actionLoading ? 'Working…' : 'Reinstate Listing'}

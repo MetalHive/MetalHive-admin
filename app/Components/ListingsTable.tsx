@@ -4,6 +4,7 @@ import { Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import useListingsStore from "@/app/store/useListingsStore";
+import { useToast } from "@/app/Components/Toast";
 
 export default function ListingsTable() {
     const {
@@ -17,6 +18,7 @@ export default function ListingsTable() {
         reinstateListing
     } = useListingsStore();
 
+    const toast = useToast();
     const [open, setOpen] = useState(false);
     const [selected, setSelected] = useState("30 days");
     const [searchQuery, setSearchQuery] = useState("");
@@ -35,15 +37,33 @@ export default function ListingsTable() {
     }, []);
 
     const handleDelete = async (id: string) => {
-        if (confirm('Delete this listing? It will be removed from the marketplace and every admin view.')) {
+        if (!confirm('Delete this listing? It will be removed from the marketplace and every admin view.')) return;
+        try {
             await deleteListing(id);
+            toast.success('Listing deleted.');
+        } catch {
+            toast.error(useListingsStore.getState().error || 'Failed to delete listing.');
         }
     }
 
     const handleSuspend = async (id: string) => {
         const reason = prompt('Reason for suspending this listing (shown to the seller):');
         if (reason === null) return; // cancelled
-        await suspendListing(id, reason);
+        try {
+            await suspendListing(id, reason);
+            toast.success('Listing suspended.');
+        } catch {
+            toast.error(useListingsStore.getState().error || 'Failed to suspend listing.');
+        }
+    }
+
+    const handleReinstate = async (id: string) => {
+        try {
+            await reinstateListing(id);
+            toast.success('Listing reinstated.');
+        } catch {
+            toast.error(useListingsStore.getState().error || 'Failed to reinstate listing.');
+        }
     }
 
     return (
@@ -175,7 +195,7 @@ export default function ListingsTable() {
                                             </Link>
                                             {item.status === 'suspended' ? (
                                                 <button
-                                                    onClick={() => reinstateListing(item.id)}
+                                                    onClick={() => handleReinstate(item.id)}
                                                     className="text-xs border border-green-300 text-green-700 px-3 py-2 rounded-md hover:bg-green-50"
                                                 >
                                                     Reinstate

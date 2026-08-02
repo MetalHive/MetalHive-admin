@@ -8,6 +8,7 @@ import { MdPerson } from "react-icons/md";
 import { BsFillGridFill } from "react-icons/bs";
 import ListingsTable from '../Components/ListingsTable';
 import useDashboardStore from '@/app/store/useDashboardStore';
+import { formatCurrency } from '@/app/lib/format';
 
 const Dashbaoard = () => {
     const { stats, fetchStats } = useDashboardStore();
@@ -35,7 +36,7 @@ const Dashbaoard = () => {
             key: '3',
             icon: <LuWallet />,
             title: 'Total Volume',
-            amount: stats ? `₦${stats.totalVolume.toLocaleString()}` : '---',
+            amount: stats ? formatCurrency(stats.totalVolume) : '---',
             sub: 'Total transaction value',
         },
         {

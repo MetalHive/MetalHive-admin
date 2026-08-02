@@ -3,6 +3,7 @@
 import { Search, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import useSubscriptionStore from '@/app/store/useSubscriptionStore';
+import { useToast } from "@/app/Components/Toast";
 
 const tabs = [
     { id: 'all', label: 'All' },
@@ -40,9 +41,15 @@ export default function SubscriptionsTable() {
         fetchSubscriptions();
     }, []);
 
+    const toast = useToast();
+
     const handleCancel = async (id: string) => {
-        if (confirm('Are you sure you want to cancel this subscription?')) {
+        if (!confirm('Are you sure you want to cancel this subscription?')) return;
+        try {
             await cancelSubscription(id);
+            toast.success('Subscription cancelled.');
+        } catch {
+            toast.error(useSubscriptionStore.getState().error || 'Failed to cancel subscription.');
         }
     }
 
