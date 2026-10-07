@@ -1,51 +1,64 @@
 import { create } from 'zustand';
 import api from '@/app/lib/api';
+import { unwrap, unwrapList, Pagination } from '@/app/lib/unwrap';
+import { getErrorMessage } from '@/app/lib/errors';
 
-interface User {
-    id: string;
+export type UserStatus = 'active' | 'suspended';
+
+/**
+ * Row of GET /admin/users (AdminUserSerializer). `name` is the display name;
+ * first_name/last_name are usually empty because registration never collects
+ * them.
+ */
+export interface User {
+    id: string | number;
     name: string;
     company_name: string | null;
     first_name: string;
     last_name: string;
     email: string;
-    user_type: 'buyer' | 'seller' | 'admin';
-    status: 'active' | 'inactive' | 'suspended';
+    user_type: 'buyer' | 'seller' | 'admin' | 'unknown';
+    status: UserStatus;
     date_joined: string;
-    last_login: string;
+    last_login: string | null;
+}
+
+/** GET /admin/users/{id} (AdminUserProfileSerializer). */
+export interface UserDetail extends User {
+    phone?: string | null;
+    country?: string | null;
+    city?: string | null;
+    profile_details?: Record<string, string | null> | null;
+}
+
+interface UsersStats {
+    totalListings: number;
+    completedTransactions: number;
+    totalTransactionValue: number;
+    activeUsers: number;
+    sellersCount: number;
 }
 
 interface UsersState {
     users: User[];
-    stats: {
-        totalListings: number;
-        completedTransactions: number;
-        totalTransactionValue: number;
-        activeUsers: number;
-        sellersCount: number;
-    } | null;
+    stats: UsersStats | null;
     loading: boolean;
     error: string | null;
-    pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-    };
+    pagination: Pagination;
     filters: {
         status: string;
         user_type: string;
         search: string;
-        date_range: string;
     };
 
     fetchUsers: (page?: number) => Promise<void>;
     fetchStats: () => Promise<void>;
-    updateUserStatus: (id: string, status: string) => Promise<void>;
+    updateUserStatus: (id: string, status: UserStatus) => Promise<void>;
     deleteUser: (id: string) => Promise<void>;
-    userDetails: User | null;
+    userDetails: UserDetail | null;
     fetchUserDetails: (id: string) => Promise<void>;
 
-    setFilter: (key: string, value: string) => void;
+    setFilter: (key: 'status' | 'user_type' | 'search', value: string) => void;
 }
 
 const useUsersStore = create<UsersState>((set, get) => ({
@@ -64,7 +77,6 @@ const useUsersStore = create<UsersState>((set, get) => ({
         status: '',
         user_type: '',
         search: '',
-        date_range: '30 days',
     },
 
     fetchUsers: async (page = 1) => {
@@ -72,7 +84,7 @@ const useUsersStore = create<UsersState>((set, get) => ({
         const { filters, pagination } = get();
 
         try {
-            const params: any = {
+            const params: Record<string, string | number> = {
                 page,
                 limit: pagination.limit,
             };
@@ -80,32 +92,34 @@ const useUsersStore = create<UsersState>((set, get) => ({
             if (filters.status && filters.status !== 'all') params.status = filters.status;
             if (filters.user_type && filters.user_type !== 'all') params.user_type = filters.user_type;
             if (filters.search) params.search = filters.search;
-            // Note: date_range handling depends on backend implementation
 
             const response = await api.get('/admin/users', { params });
-            const { users, pagination: apiPagination } = response.data.data;
+            const { items, pagination: apiPagination } = unwrapList<User>(response, 'users');
 
             set({
-                users,
+                users: items,
                 loading: false,
                 pagination: { ...pagination, ...apiPagination }
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to fetch users',
+                error: getErrorMessage(error, 'Failed to fetch users'),
                 loading: false
             });
         }
     },
 
     fetchUserDetails: async (id: string) => {
-        set({ loading: true, error: null, userDetails: null });
+        // Keep the current record while refetching the same user so a status
+        // change updates the card in place instead of unmounting the page.
+        const sameUser = String(get().userDetails?.id) === String(id);
+        set({ loading: true, error: null, userDetails: sameUser ? get().userDetails : null });
         try {
             const response = await api.get(`/admin/users/${id}`);
-            set({ userDetails: response.data.data, loading: false });
-        } catch (error: any) {
+            set({ userDetails: unwrap<UserDetail>(response), loading: false });
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to fetch user details',
+                error: getErrorMessage(error, 'Failed to fetch user details'),
                 loading: false
             });
         }
@@ -114,24 +128,26 @@ const useUsersStore = create<UsersState>((set, get) => ({
     fetchStats: async () => {
         try {
             const response = await api.get('/admin/stats/users');
-            set({ stats: response.data.data });
-        } catch (error) {
-            console.error('Failed to fetch user stats', error);
+            set({ stats: unwrap<UsersStats>(response) });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to fetch user stats') });
         }
     },
 
     updateUserStatus: async (id, status) => {
         try {
             await api.patch(`/admin/users/${id}/status`, { status });
-            // Refresh user details if currently viewing that user
+            // Refresh user details if currently viewing that user. The route
+            // param is a string while the API returns a numeric id, so compare
+            // as strings or the Status card never updates.
             const currentUser = get().userDetails;
-            if (currentUser && currentUser.id === id) {
+            if (currentUser && String(currentUser.id) === String(id)) {
                 await get().fetchUserDetails(id);
             }
             // Also refresh list if needed
             await get().fetchUsers(get().pagination.page);
-        } catch (error: any) {
-            set({ error: error.response?.data?.message || 'Failed to update user status' });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to update user status') });
             throw error;
         }
     },
@@ -140,8 +156,8 @@ const useUsersStore = create<UsersState>((set, get) => ({
         try {
             await api.delete(`/admin/users/${id}`);
             await get().fetchUsers(get().pagination.page);
-        } catch (error: any) {
-            set({ error: error.response?.data?.message || 'Failed to delete user' });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to delete user') });
             throw error;
         }
     },

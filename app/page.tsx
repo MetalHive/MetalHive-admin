@@ -1,11 +1,6 @@
-import SideBar from "./Components/Sidebar";
-import Dashbaoard from "./dashboard/page";
+import { redirect } from "next/navigation";
 
-
+// The admin app lives under /dashboard; the root simply sends you there.
 export default function Page() {
-  return (
-<div>
- <Dashbaoard />
-</div>
-  );
+  redirect("/dashboard");
 }

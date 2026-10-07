@@ -4,6 +4,9 @@ import { Search, Eye } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import useBidsStore from "@/app/store/useBidsStore";
+import ErrorBanner from "@/app/Components/ErrorBanner";
+import PaginationFooter from "@/app/Components/PaginationFooter";
+import { formatCurrency, formatDate } from "@/app/lib/format";
 
 const tabs = [
     { id: 'all', label: 'All' },
@@ -16,30 +19,31 @@ export default function BidsTable() {
     const {
         bids,
         loading,
+        error,
         filters,
         pagination,
         fetchBids,
         setFilter
     } = useBidsStore();
 
-    const [activeTab, setActiveTab] = useState('all');
-    const [searchTerm, setSearchTerm] = useState('');
+    // The active tab IS the store filter, so it survives navigating away and
+    // back and does not need a second fetch to sync up on mount.
+    const activeTab = filters.status || 'all';
+    const [searchTerm, setSearchTerm] = useState(filters.search);
 
+    // Exactly one fetch on mount.
     useEffect(() => {
-        setFilter('status', activeTab === 'all' ? '' : activeTab);
-    }, [activeTab]);
+        fetchBids(1);
+    }, [fetchBids]);
 
+    // Debounced search; skipped when the input already matches the store.
     useEffect(() => {
+        if (searchTerm === filters.search) return;
         const timeoutId = setTimeout(() => {
             setFilter('search', searchTerm);
-        }, 500); // Debounce search
+        }, 500);
         return () => clearTimeout(timeoutId);
-    }, [searchTerm]);
-
-    // Initial fetch
-    useEffect(() => {
-        fetchBids();
-    }, []);
+    }, [searchTerm, filters.search, setFilter]);
 
     const getStatusColor = (status: string) => {
         switch (status.toLowerCase()) {
@@ -63,7 +67,7 @@ export default function BidsTable() {
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
+                            onClick={() => setFilter('status', tab.id === 'all' ? '' : tab.id)}
                             className={`pb-1 text-sm font-medium whitespace-nowrap transition-colors relative ${activeTab === tab.id
                                 ? 'text-yellow-600'
                                 : 'text-gray-500 hover:text-gray-700'
@@ -91,6 +95,8 @@ export default function BidsTable() {
                 </div>
             </div>
 
+            {error && <ErrorBanner message={error} className="m-4" />}
+
             {/* Table */}
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -115,12 +121,14 @@ export default function BidsTable() {
                             </tr>
                         ) : bids.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="text-center py-8 text-gray-500">No bids found</td>
+                                <td colSpan={7} className="text-center py-8 text-gray-500">
+                                    {error ? 'Bids could not be loaded.' : 'No bids found'}
+                                </td>
                             </tr>
                         ) : (
-                            bids.map((item, index) => (
+                            bids.map((item) => (
                                 <tr
-                                    key={index}
+                                    key={item.id}
                                     className="hover:bg-gray-50 group transition-colors"
                                 >
                                     <td className="py-4 px-4">
@@ -138,17 +146,14 @@ export default function BidsTable() {
                                     </td>
                                     <td className="py-4 px-4">
                                         <p className="font-medium text-gray-900">
-                                            ${Number(item.amount).toLocaleString()}
+                                            {formatCurrency(item.amount)}
                                             <span className="text-xs font-normal text-gray-500">/{item.offer_price_unit}</span>
                                         </p>
                                         <p className="text-xs text-gray-500">
-                                            {item.quantity} &middot; total{' '}
-                                            {item.total_amount != null
-                                                ? `$${Number(item.total_amount).toLocaleString()}`
-                                                : '—'}
+                                            {item.quantity} &middot; total {formatCurrency(item.total_amount)}
                                         </p>
                                     </td>
-                                    <td className="py-4 px-4 text-gray-600">{item.date}</td>
+                                    <td className="py-4 px-4 text-gray-600">{formatDate(item.date)}</td>
                                     <td className={`py-4 px-4 font-medium ${getStatusColor(item.status)}`}>
                                         {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                                     </td>
@@ -167,26 +172,8 @@ export default function BidsTable() {
                     </tbody>
                 </table>
             </div>
-            {/* Pagination */}
-            <div className="p-4 border-t border-gray-200 text-xs text-gray-500 flex justify-between items-center">
-                <span>Showing {(pagination.page - 1) * pagination.limit + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}</span>
-                <div className="flex gap-1">
-                    <button
-                        disabled={pagination.page <= 1}
-                        onClick={() => fetchBids(pagination.page - 1)}
-                        className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
-                    >
-                        Prev
-                    </button>
-                    <button
-                        disabled={pagination.page >= pagination.totalPages}
-                        onClick={() => fetchBids(pagination.page + 1)}
-                        className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
-                    >
-                        Next
-                    </button>
-                </div>
-            </div>
+
+            <PaginationFooter pagination={pagination} onPageChange={fetchBids} />
         </div>
     );
 }

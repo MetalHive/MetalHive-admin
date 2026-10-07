@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { MapPin, Package, Scale, ChevronRight } from 'lucide-react';
 import { FaArrowLeftLong } from "react-icons/fa6";
 import TopBar from '@/app/Components/TopBar';
-import BidsOverviewTable from '@/app/Components/Bidsoverview';
+import ListingBidsTable from '@/app/Components/ListingBidsTable';
 import { useToast } from '@/app/Components/Toast';
 import useListingsStore from '@/app/store/useListingsStore';
+import { formatCurrency, formatDate } from '@/app/lib/format';
 
 const STATUS_STYLES: Record<string, string> = {
     active: 'bg-green-100 text-green-700 border-green-200',
@@ -17,11 +18,6 @@ const STATUS_STYLES: Record<string, string> = {
     inactive: 'bg-gray-100 text-gray-600 border-gray-200',
     draft: 'bg-amber-100 text-amber-700 border-amber-200',
 };
-
-const money = (value: string | number | null | undefined) =>
-    value == null ? '—' : `$${Number(value).toLocaleString(undefined, {
-        minimumFractionDigits: 2, maximumFractionDigits: 2,
-    })}`;
 
 export default function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -45,7 +41,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
 
     useEffect(() => {
         fetchListing(id);
-    }, [id]);
+    }, [id, fetchListing]);
 
     const handleDelete = async () => {
         try {
@@ -106,6 +102,9 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
 
     const images: string[] = listing.images?.length ? listing.images : [];
     const statusStyle = STATUS_STYLES[listing.status] ?? STATUS_STYLES.inactive;
+    // The list serializer calls it price_unit; some backend builds alias priceUnit.
+    const priceUnit = listing.price_unit ?? listing.priceUnit ?? '';
+    const sellerName = listing.seller_name || listing.seller?.name || listing.seller?.email || '—';
 
     return (
         <div className="">
@@ -146,7 +145,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
                                 </span>
                             </div>
                             <p className="text-sm text-gray-500 mb-4">
-                                Listing created on {listing.created_date || '—'}
+                                Listing created on {formatDate(listing.created_date || listing.created_at)}
                             </p>
 
                             <div className="my-6">
@@ -158,13 +157,19 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
 
                             <div>
                                 <h3 className="text-gray-500 mb-2">Seller Information</h3>
+                                <p className="text-sm font-medium text-gray-900 mb-3">
+                                    {sellerName}
+                                    {listing.seller?.email && (
+                                        <span className="ml-2 text-xs font-normal text-gray-500">{listing.seller.email}</span>
+                                    )}
+                                </p>
                                 <div className="grid grid-cols-3 gap-4">
                                     <div className="flex items-start gap-2">
                                         <Package className="w-5 h-5 text-gray-400 mt-0.5" />
                                         <div>
                                             <p className="text-xs text-gray-500">Asking price</p>
                                             <p className="text-sm font-semibold">
-                                                {money(listing.price)}/{listing.price_unit}
+                                                {formatCurrency(listing.price)}/{priceUnit}
                                             </p>
                                         </div>
                                     </div>
@@ -200,6 +205,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
                                             <button
                                                 key={index}
                                                 onClick={() => setCurrentImageIndex(index)}
+                                                aria-label={`Show image ${index + 1}`}
                                                 className={`w-2 h-2 rounded-full transition-all ${index === currentImageIndex ? 'bg-white w-6' : 'bg-white/50'
                                                     }`}
                                             />
@@ -213,18 +219,16 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
                     {/* Right column */}
                     <div className="col-span-full md:col-start-7 md:col-span-4">
                         <div className="mb-6">
-                            <p className="text-sm text-gray-600 mb-1">
-                                {listing.seller?.name || listing.seller_name || '—'}
-                            </p>
+                            <p className="text-sm text-gray-600 mb-1">{sellerName}</p>
                             <h3 className="text-xl font-semibold mb-2">{listing.material_name}</h3>
 
                             <p className="text-3xl font-bold mb-1">
-                                {money(listing.price)}
-                                <span className="text-base font-normal text-gray-500">/{listing.price_unit}</span>
+                                {formatCurrency(listing.price)}
+                                <span className="text-base font-normal text-gray-500">/{priceUnit}</span>
                             </p>
                             {listing.price_per_kg && (
                                 <p className="text-sm text-gray-500">
-                                    {money(listing.price_per_kg)} per kg
+                                    {formatCurrency(listing.price_per_kg)} per kg
                                 </p>
                             )}
                         </div>
@@ -235,11 +239,12 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
                                 ['Condition', listing.condition],
                                 ['Quantity (as listed)', listing.quantity],
                                 ['Quantity (kg)', listing.quantity_kg ? `${Number(listing.quantity_kg).toLocaleString()} kg` : '—'],
-                                ['Lot value', money(listing.total_value)],
+                                ['Lot value', formatCurrency(listing.total_value)],
                                 ['Location', listing.location],
                                 ['Product code', listing.product_code],
                                 ['Bids', String(listing.bids_count ?? 0)],
                                 ['Views', String(listing.views_count ?? 0)],
+                                ['Published', formatDate(listing.published_at)],
                             ].map(([label, value]) => (
                                 <div key={label} className="flex justify-between py-3 border-b border-gray-100">
                                     <span className="text-sm text-gray-600">{label}</span>
@@ -281,7 +286,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                 </div>
 
-                <BidsOverviewTable />
+                <ListingBidsTable listingId={id} />
             </div>
 
             {confirming && (

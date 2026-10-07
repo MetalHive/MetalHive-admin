@@ -5,11 +5,16 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import useListingsStore from "@/app/store/useListingsStore";
 import { useToast } from "@/app/Components/Toast";
+import ErrorBanner from "@/app/Components/ErrorBanner";
+import PaginationFooter from "@/app/Components/PaginationFooter";
+import { formatCurrency, formatDate } from "@/app/lib/format";
 
 export default function ListingsTable() {
     const {
         listings,
         loading,
+        error,
+        filters,
         pagination,
         fetchListings,
         setFilter,
@@ -19,22 +24,21 @@ export default function ListingsTable() {
     } = useListingsStore();
 
     const toast = useToast();
-    const [open, setOpen] = useState(false);
-    const [selected, setSelected] = useState("30 days");
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState(filters.search);
 
-    // Debounce search
+    // Exactly one fetch on mount.
     useEffect(() => {
+        fetchListings(1);
+    }, [fetchListings]);
+
+    // Debounced search; skipped when the input already matches the store.
+    useEffect(() => {
+        if (searchQuery === filters.search) return;
         const timeoutId = setTimeout(() => {
             setFilter('search', searchQuery);
         }, 500);
         return () => clearTimeout(timeoutId);
-    }, [searchQuery]);
-
-    // Initial fetch
-    useEffect(() => {
-        fetchListings();
-    }, []);
+    }, [searchQuery, filters.search, setFilter]);
 
     const handleDelete = async (id: string) => {
         if (!confirm('Delete this listing? It will be removed from the marketplace and every admin view.')) return;
@@ -69,54 +73,20 @@ export default function ListingsTable() {
     return (
         <div className="bg-white   mt-14  ">
             {/* Header */}
-            <div className="flex items-center justify-between mb-4 border-l border-gray-200 p-3 border-r border-b shadow-xs">
+            <div className="flex items-center justify-end mb-4 border-l border-gray-200 p-3 border-r border-b shadow-xs">
                 <div className="relative">
-                    <button
-                        onClick={() => setOpen(!open)}
-                        className="border border-gray-300 rounded-md px-4 py-2 text-[15px] font-normal hover:bg-gray-50"
-                    >
-
-                        <span className="text-black">{selected}</span>
-
-                    </button>
-
-                    {open && (
-                        <div className="absolute mt-2 w-40 bg-white border border-gray-200 rounded-md shadow-md z-10">
-                            {["30 days", "2 weeks", "7 days", "24 hours"].map((opt) => (
-                                <button
-                                    key={opt}
-                                    onClick={() => {
-                                        setSelected(opt);
-                                        setOpen(false);
-                                    }}
-                                    className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-[15px] font-normal"
-                                >
-                                    {opt}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Search"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none"
-                        />
-                    </div>
-
-                    {/* Bulk delete placeholder */}
-                    <button className="flex items-center gap-1 border border-gray-300 rounded-md px-4 py-2 text-[15px] font-normal hover:bg-gray-50">
-                        <Trash2 size={16} />
-                        Delete
-                    </button>
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Search"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none"
+                    />
                 </div>
             </div>
+
+            {error && <ErrorBanner message={error} className="mb-4" />}
 
             {/* Table */}
             <div className="overflow-x-auto min-h-[400px]">
@@ -143,28 +113,30 @@ export default function ListingsTable() {
                             </tr>
                         ) : listings.length === 0 ? (
                             <tr>
-                                <td colSpan={9} className="text-center py-8 text-gray-500">No listings found</td>
+                                <td colSpan={9} className="text-center py-8 text-gray-500">
+                                    {error ? 'Listings could not be loaded.' : 'No listings found'}
+                                </td>
                             </tr>
                         ) : (
-                            listings.map((item, index) => (
+                            listings.map((item) => (
                                 <tr
-                                    key={index}
+                                    key={item.id}
                                     className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 mb-4"
                                 >
                                     <td className="py-6 px-2">
                                         <input type="checkbox" />
                                     </td>
                                     <td className="py-6 px-2 font-medium">{item.id}</td>
-                                    <td className="py-6 px-2">{item.created_date}</td>
+                                    <td className="py-6 px-2">{formatDate(item.created_date)}</td>
                                     <td className="py-6 px-2 font-medium">{item.material_name}</td>
                                     <td className="py-6 px-2">{item.seller_name}</td>
                                     <td className="py-6 px-2">
                                         <p className="font-medium">
-                                            ${Number(item.price).toLocaleString()} /{item.price_unit}
+                                            {formatCurrency(item.price)} /{item.price_unit ?? item.priceUnit}
                                         </p>
                                         {item.price_per_kg && (
                                             <p className="text-xs text-gray-500">
-                                                ${Number(item.price_per_kg).toLocaleString()} /kg
+                                                {formatCurrency(item.price_per_kg)} /kg
                                             </p>
                                         )}
                                     </td>
@@ -172,7 +144,7 @@ export default function ListingsTable() {
                                         <p>{item.quantity}</p>
                                         {item.total_value && (
                                             <p className="text-xs text-gray-500">
-                                                lot ${Number(item.total_value).toLocaleString()}
+                                                lot {formatCurrency(item.total_value)}
                                             </p>
                                         )}
                                     </td>
@@ -225,26 +197,8 @@ export default function ListingsTable() {
 
                 </table>
             </div>
-            {/* Pagination */}
-            <div className="p-4 border-t border-gray-200 text-xs text-gray-500 flex justify-between items-center bg-white">
-                <span>Showing {(pagination.page - 1) * pagination.limit + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}</span>
-                <div className="flex gap-1">
-                    <button
-                        disabled={pagination.page <= 1}
-                        onClick={() => fetchListings(pagination.page - 1)}
-                        className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
-                    >
-                        Prev
-                    </button>
-                    <button
-                        disabled={pagination.page >= pagination.totalPages}
-                        onClick={() => fetchListings(pagination.page + 1)}
-                        className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
-                    >
-                        Next
-                    </button>
-                </div>
-            </div>
+
+            <PaginationFooter pagination={pagination} onPageChange={fetchListings} className="bg-white" />
         </div>
     );
 }

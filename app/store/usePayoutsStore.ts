@@ -1,29 +1,35 @@
 import { create } from 'zustand';
 import api from '@/app/lib/api';
+import { unwrap, unwrapList, Pagination } from '@/app/lib/unwrap';
+import { getErrorMessage } from '@/app/lib/errors';
 
-interface Transaction {
+export type PayoutStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+/**
+ * Row of GET /admin/payouts (AdminPayoutSerializer over Transaction).
+ * Withdrawals are stored with a NEGATIVE amount; display Math.abs().
+ */
+export interface PayoutTransaction {
     id: string;
     seller_name: string;
-    amount: number;
+    amount: number | string;
     request_date: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed';
+    status: PayoutStatus;
     method: string;
 }
 
+interface PayoutStats {
+    pendingPayouts: number;
+    totalPaidOut: number;
+}
+
 interface PayoutsState {
-    transactions: Transaction[];
-    stats: {
-        pendingPayouts: number;
-        totalPaidOut: number;
-    } | null;
+    transactions: PayoutTransaction[];
+    stats: PayoutStats | null;
     loading: boolean;
     error: string | null;
-    pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-    };
+    actionLoading: string | null;
+    pagination: Pagination;
     filters: {
         status: string;
         search: string;
@@ -33,7 +39,7 @@ interface PayoutsState {
     fetchStats: () => Promise<void>;
     approvePayout: (id: string) => Promise<void>;
     rejectPayout: (id: string) => Promise<void>;
-    setFilter: (key: string, value: string) => void;
+    setFilter: (key: 'status' | 'search', value: string) => void;
 }
 
 const usePayoutsStore = create<PayoutsState>((set, get) => ({
@@ -41,6 +47,7 @@ const usePayoutsStore = create<PayoutsState>((set, get) => ({
     stats: null,
     loading: false,
     error: null,
+    actionLoading: null,
     pagination: {
         page: 1,
         limit: 20,
@@ -57,7 +64,7 @@ const usePayoutsStore = create<PayoutsState>((set, get) => ({
         const { filters, pagination } = get();
 
         try {
-            const params: any = {
+            const params: Record<string, string | number> = {
                 page,
                 limit: pagination.limit,
             };
@@ -66,16 +73,16 @@ const usePayoutsStore = create<PayoutsState>((set, get) => ({
             if (filters.search) params.search = filters.search;
 
             const response = await api.get('/admin/payouts', { params });
-            const { transactions, pagination: apiPagination } = response.data.data;
+            const { items, pagination: apiPagination } = unwrapList<PayoutTransaction>(response, 'transactions');
 
             set({
-                transactions,
+                transactions: items,
                 loading: false,
                 pagination: { ...pagination, ...apiPagination }
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to fetch payouts',
+                error: getErrorMessage(error, 'Failed to fetch payouts'),
                 loading: false
             });
         }
@@ -84,30 +91,34 @@ const usePayoutsStore = create<PayoutsState>((set, get) => ({
     fetchStats: async () => {
         try {
             const response = await api.get('/admin/stats/payouts');
-            set({ stats: response.data.data });
-        } catch (error) {
-            console.error('Failed to fetch payout stats', error);
+            set({ stats: unwrap<PayoutStats>(response) });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to fetch payout stats') });
         }
     },
 
     approvePayout: async (id) => {
+        set({ actionLoading: id, error: null });
         try {
             await api.post(`/admin/payouts/${id}/approve`);
+            set({ actionLoading: null });
             await get().fetchPayouts(get().pagination.page);
             await get().fetchStats();
-        } catch (error: any) {
-            set({ error: error.response?.data?.message || 'Failed to approve payout' });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to approve payout'), actionLoading: null });
             throw error;
         }
     },
 
     rejectPayout: async (id) => {
+        set({ actionLoading: id, error: null });
         try {
             await api.post(`/admin/payouts/${id}/reject`);
+            set({ actionLoading: null });
             await get().fetchPayouts(get().pagination.page);
             await get().fetchStats();
-        } catch (error: any) {
-            set({ error: error.response?.data?.message || 'Failed to reject payout' });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to reject payout'), actionLoading: null });
             throw error;
         }
     },

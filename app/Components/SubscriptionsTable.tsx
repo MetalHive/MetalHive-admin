@@ -1,9 +1,12 @@
 "use client";
 
-import { Search, XCircle } from "lucide-react";
+import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import useSubscriptionStore from '@/app/store/useSubscriptionStore';
 import { useToast } from "@/app/Components/Toast";
+import ErrorBanner from "@/app/Components/ErrorBanner";
+import PaginationFooter from "@/app/Components/PaginationFooter";
+import { formatDate } from "@/app/lib/format";
 
 const tabs = [
     { id: 'all', label: 'All' },
@@ -16,30 +19,30 @@ export default function SubscriptionsTable() {
     const {
         subscriptions,
         loading,
+        error,
+        filters,
         pagination,
         fetchSubscriptions,
         setFilter,
         cancelSubscription
     } = useSubscriptionStore();
 
-    const [activeTab, setActiveTab] = useState('all');
-    const [searchTerm, setSearchTerm] = useState('');
+    const activeTab = filters.status || 'all';
+    const [searchTerm, setSearchTerm] = useState(filters.search);
 
+    // Exactly one fetch on mount.
     useEffect(() => {
-        setFilter('status', activeTab === 'all' ? '' : activeTab);
-    }, [activeTab]);
+        fetchSubscriptions(1);
+    }, [fetchSubscriptions]);
 
+    // Debounced search; skipped when the input already matches the store.
     useEffect(() => {
+        if (searchTerm === filters.search) return;
         const timeoutId = setTimeout(() => {
             setFilter('search', searchTerm);
         }, 500);
         return () => clearTimeout(timeoutId);
-    }, [searchTerm]);
-
-    // Initial fetch
-    useEffect(() => {
-        fetchSubscriptions();
-    }, []);
+    }, [searchTerm, filters.search, setFilter]);
 
     const toast = useToast();
 
@@ -58,9 +61,7 @@ export default function SubscriptionsTable() {
             case 'active':
                 return 'text-green-600';
             case 'cancelled':
-                return 'text-red-500';
             case 'expired':
-                return 'text-red-500'; // Or generic text-gray-500 or dark red
             case 'suspended':
                 return 'text-red-500';
             default:
@@ -77,7 +78,7 @@ export default function SubscriptionsTable() {
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
+                            onClick={() => setFilter('status', tab.id === 'all' ? '' : tab.id)}
                             className={`pb-3 text-sm font-medium whitespace-nowrap transition-colors relative ${activeTab === tab.id
                                 ? 'text-yellow-600 border-b-2 border-yellow-600'
                                 : 'text-gray-500 hover:text-gray-700'
@@ -102,6 +103,8 @@ export default function SubscriptionsTable() {
                 </div>
             </div>
 
+            {error && <ErrorBanner message={error} className="mb-4" />}
+
             {/* Table */}
             <div className="overflow-x-auto min-h-[400px]">
                 <table className="w-full text-sm">
@@ -111,7 +114,7 @@ export default function SubscriptionsTable() {
                                 {/* Header Checkbox if needed */}
                             </th>
                             <th className="py-4 px-4 font-normal text-gray-500">Buyer</th>
-                            <th className="py-4 px-4 font-normal text-gray-500">Subscription ID</th>
+                            <th className="py-4 px-4 font-normal text-gray-500">Plan</th>
                             <th className="py-4 px-4 font-normal text-gray-500">Status</th>
                             <th className="py-4 px-4 font-normal text-gray-500">Billing Status</th>
                             <th className="py-4 px-4 font-normal text-gray-500">Start Date</th>
@@ -127,12 +130,14 @@ export default function SubscriptionsTable() {
                             </tr>
                         ) : subscriptions.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="text-center py-8 text-gray-500">No subscriptions found</td>
+                                <td colSpan={8} className="text-center py-8 text-gray-500">
+                                    {error ? 'Subscriptions could not be loaded.' : 'No subscriptions found'}
+                                </td>
                             </tr>
                         ) : (
-                            subscriptions.map((item, index) => (
+                            subscriptions.map((item) => (
                                 <tr
-                                    key={index}
+                                    key={item.id}
                                     className="hover:bg-gray-50 group"
                                 >
                                     <td className="py-4 px-4">
@@ -142,20 +147,27 @@ export default function SubscriptionsTable() {
                                         <div className="font-medium text-gray-900">{item.buyer_name}</div>
                                         <div className="text-gray-500 text-xs mt-0.5">{item.buyer_email}</div>
                                     </td>
-                                    <td className="py-4 px-4 font-medium text-gray-900">{item.id}</td>
+                                    <td className="py-4 px-4">
+                                        <div className="font-medium text-gray-900">{item.plan_name || '—'}</div>
+                                        <div className="text-gray-400 text-xs mt-0.5 break-all">{item.id}</div>
+                                    </td>
                                     <td className={`py-4 px-4 font-medium ${getStatusColor(item.status)}`}>
                                         {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                                     </td>
-                                    <td className="py-4 px-4 text-gray-900">{item.billing_status}</td>
-                                    <td className="py-4 px-4 text-gray-900">{item.start_date}</td>
-                                    <td className="py-4 px-4 text-gray-900">{item.next_billing_date}</td>
+                                    <td className="py-4 px-4 text-gray-900 capitalize">{item.billing_status || '—'}</td>
+                                    <td className="py-4 px-4 text-gray-900">{formatDate(item.start_date)}</td>
+                                    <td className="py-4 px-4 text-gray-900">{formatDate(item.next_billing_date)}</td>
                                     <td className="py-4 px-4 text-right">
-                                        <button
-                                            onClick={() => handleCancel(item.id)}
-                                            className="text-red-500 border border-red-500 hover:bg-red-50 text-xs px-4 py-1.5 rounded transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
+                                        {item.status === 'active' ? (
+                                            <button
+                                                onClick={() => handleCancel(item.id)}
+                                                className="text-red-500 border border-red-500 hover:bg-red-50 text-xs px-4 py-1.5 rounded transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                        ) : (
+                                            <span className="text-xs text-gray-400">—</span>
+                                        )}
                                     </td>
                                 </tr>
                             ))
@@ -163,26 +175,8 @@ export default function SubscriptionsTable() {
                     </tbody>
                 </table>
             </div>
-            {/* Pagination */}
-            <div className="p-4 border-t border-gray-200 text-xs text-gray-500 flex justify-between items-center">
-                <span>Showing {(pagination.page - 1) * pagination.limit + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}</span>
-                <div className="flex gap-1">
-                    <button
-                        disabled={pagination.page <= 1}
-                        onClick={() => fetchSubscriptions(pagination.page - 1)}
-                        className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
-                    >
-                        Prev
-                    </button>
-                    <button
-                        disabled={pagination.page >= pagination.totalPages}
-                        onClick={() => fetchSubscriptions(pagination.page + 1)}
-                        className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
-                    >
-                        Next
-                    </button>
-                </div>
-            </div>
+
+            <PaginationFooter pagination={pagination} onPageChange={fetchSubscriptions} />
         </div>
     );
 }

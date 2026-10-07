@@ -1,21 +1,20 @@
 'use client'
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import SideBar from '../Components/Sidebar'
-import { FaSortDown } from "react-icons/fa";
-import { LuCalendarRange } from "react-icons/lu";
 import { LuWallet } from "react-icons/lu";
 import { MdPerson } from "react-icons/md";
 import { BsFillGridFill } from "react-icons/bs";
 import ListingsTable from '../Components/ListingsTable';
+import ErrorBanner from '../Components/ErrorBanner';
 import useDashboardStore from '@/app/store/useDashboardStore';
 import { formatCurrency } from '@/app/lib/format';
 
-const Dashbaoard = () => {
-    const { stats, fetchStats } = useDashboardStore();
+const Dashboard = () => {
+    const { stats, error, fetchStats } = useDashboardStore();
 
     useEffect(() => {
         fetchStats();
-    }, []);
+    }, [fetchStats]);
 
     const cards = [
         {
@@ -23,7 +22,7 @@ const Dashbaoard = () => {
             icon: <BsFillGridFill />,
             title: 'Total Listings',
             amount: stats?.totalListings.toLocaleString() || "0",
-            sub: 'Active listings',
+            sub: 'All listings on the platform',
         },
         {
             key: '2',
@@ -36,7 +35,7 @@ const Dashbaoard = () => {
             key: '3',
             icon: <LuWallet />,
             title: 'Total Volume',
-            amount: stats ? formatCurrency(stats.totalVolume) : '---',
+            amount: stats ? formatCurrency(stats.totalVolume) : '—',
             sub: 'Total transaction value',
         },
         {
@@ -48,8 +47,6 @@ const Dashbaoard = () => {
         },
     ]
 
-    const [open, setOpen] = useState(false);
-    const [selected, setSelected] = useState("30 days");
     return (
         <div className='flex min-h-screen'>
             <SideBar />
@@ -59,41 +56,14 @@ const Dashbaoard = () => {
                         <h1 className="text-3xl font-normal text-[#17181A]">Admin Dashboard</h1>
                         <p className="text-[#737780]">Platform-wide activity and performance overview.</p>
                     </div>
-                    <div>
-                        <div className="relative">
-                            <button
-                                onClick={() => setOpen(!open)}
-                                className="flex items-center gap-3 border border-gray-300 rounded-md px-4 py-2 text-[15px] font-normal hover:bg-gray-50"
-                            >
-                                <LuCalendarRange className="text-black text-[18px]" />
-                                <span className="text-black">{selected}</span>
-                                <FaSortDown className="text-black text-[18px]" />
-                            </button>
-
-                            {open && (
-                                <div className="absolute mt-2 w-40 bg-white border border-gray-200 rounded-md shadow-md z-10">
-                                    {["30 days", "2 weeks", "7 days", "24 hours"].map((opt) => (
-                                        <button
-                                            key={opt}
-                                            onClick={() => {
-                                                setSelected(opt);
-                                                setOpen(false);
-                                            }}
-                                            className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-[15px] font-normal"
-                                        >
-                                            {opt}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                    </div>
                 </div>
+
+                {error && <ErrorBanner message={error} className="mb-4" />}
+
                 {/* second sec */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {cards.map((card, index) => (
-                        <div className="w-56" key={index}>
+                    {cards.map((card) => (
+                        <div className="w-56" key={card.key}>
                             <div className="h-[110px] rounded-xl border border-gray-200 bg-white p-4 flex flex-col justify-between">
                                 <p className="text-sm text-gray-400 flex items-center gap-2">
                                     {card.title}
@@ -119,4 +89,4 @@ const Dashbaoard = () => {
     )
 }
 
-export default Dashbaoard
+export default Dashboard

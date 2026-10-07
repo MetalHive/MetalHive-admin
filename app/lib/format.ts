@@ -16,3 +16,34 @@ export const formatCurrency = (
         maximumFractionDigits: decimals,
     })}`;
 };
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Formats an ISO datetime ("2025-01-05T13:42:00Z") or a bare date
+ * ("2025-01-05") as "Jan 5, 2025", optionally with the time. A bare date is
+ * parsed as a local calendar day so it does not shift to the previous day in
+ * timezones west of UTC. Anything unparseable is returned as given.
+ */
+export const formatDate = (
+    value: string | null | undefined,
+    { withTime = false }: { withTime?: boolean } = {}
+): string => {
+    if (!value) return '—';
+
+    const date = DATE_ONLY.test(value)
+        ? (() => {
+            const [y, m, d] = value.split('-').map(Number);
+            return new Date(y, m - 1, d);
+        })()
+        : new Date(value);
+
+    if (Number.isNaN(date.getTime())) return value;
+
+    return date.toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
+    });
+};

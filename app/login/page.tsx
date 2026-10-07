@@ -17,7 +17,7 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (isAuthenticated) {
-            router.push('/');
+            router.push('/dashboard');
         }
     }, [isAuthenticated, router]);
 
@@ -33,7 +33,7 @@ export default function LoginPage() {
         try {
             await login({ email, password });
             // Redirect handled by useEffect when isAuthenticated becomes true
-        } catch (err) {
+        } catch {
             // Error is handled in store and displayed via state
         }
     };

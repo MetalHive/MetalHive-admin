@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import api from '@/app/lib/api';
+import { unwrap, unwrapList, Pagination } from '@/app/lib/unwrap';
+import { getErrorMessage } from '@/app/lib/errors';
 
+export type BidStatus = 'pending' | 'accepted' | 'rejected' | 'countered' | 'withdrawn' | 'expired';
+
+/** Row of GET /admin/bids (AdminBidSerializer). */
 export interface Bid {
     id: string;
     listing_id: string;
@@ -11,41 +16,93 @@ export interface Bid {
         company: string | null;
         email: string;
     };
-    amount: number;
+    amount: string | number;
     offer_price_unit: string;
     total_amount: string | null;
     quantity: string;
     date: string;
-    status: 'pending' | 'accepted' | 'rejected' | 'countered' | 'withdrawn' | 'expired';
+    status: BidStatus;
+}
+
+/** GET /admin/bids/{id} (AdminBidDetailSerializer). */
+export interface BidDetail {
+    id: string;
+    amount: string | number;
+    offer_price_unit: string;
+    offer_price_per_kg: string | null;
+    quantity: string;
+    quantity_kg: string | null;
+    total_amount: string | null;
+    message: string | null;
+    status: BidStatus;
+    buyer: {
+        id: number;
+        name: string;
+        company: string | null;
+        email: string;
+        phone: string | null;
+    };
+    seller: {
+        id: number;
+        name: string;
+        email: string;
+    };
+    listing: {
+        id: string;
+        product_code: string;
+        material_name: string;
+        material_type: string;
+        condition: string;
+        quantity: string;
+        location: string;
+        status: string;
+        base_price: string;
+        price_unit: string;
+        image: string | null;
+    } | null;
+    timeline: {
+        event: string;
+        label: string;
+        timestamp: string | null;
+        data: unknown;
+    }[];
+    created_at: string;
+    expires_at: string | null;
+    accepted_at: string | null;
+    rejected_at: string | null;
+}
+
+interface BidsStats {
+    totalBids: number;
+    reviewPendingCount: number;
+    acceptedBidsCount: number;
+    totalValue: number;
 }
 
 interface BidsState {
     bids: Bid[];
-    stats: {
-        totalBids: number;
-        reviewPendingCount: number;
-        acceptedBidsCount: number;
-        totalValue: number;
-    } | null;
+    stats: BidsStats | null;
     loading: boolean;
     error: string | null;
-    pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-    };
+    pagination: Pagination;
     filters: {
         status: string;
         search: string;
     };
 
-    current: Bid | null;
+    current: BidDetail | null;
+
+    /** Bids for one listing, shown on the listing detail page. */
+    listingBids: Bid[];
+    listingBidsLoading: boolean;
+    listingBidsError: string | null;
+
     fetchBids: (page?: number) => Promise<void>;
     fetchBid: (id: string) => Promise<void>;
+    fetchListingBids: (listingId: string) => Promise<void>;
     fetchStats: () => Promise<void>;
     updateBidStatus: (id: string, status: 'accepted' | 'rejected') => Promise<void>;
-    setFilter: (key: string, value: string) => void;
+    setFilter: (key: 'status' | 'search', value: string) => void;
 }
 
 const useBidsStore = create<BidsState>((set, get) => ({
@@ -54,6 +111,9 @@ const useBidsStore = create<BidsState>((set, get) => ({
     stats: null,
     loading: false,
     error: null,
+    listingBids: [],
+    listingBidsLoading: false,
+    listingBidsError: null,
     pagination: {
         page: 1,
         limit: 20,
@@ -70,7 +130,7 @@ const useBidsStore = create<BidsState>((set, get) => ({
         const { filters, pagination } = get();
 
         try {
-            const params: any = {
+            const params: Record<string, string | number> = {
                 page,
                 limit: pagination.limit,
             };
@@ -79,16 +139,16 @@ const useBidsStore = create<BidsState>((set, get) => ({
             if (filters.search) params.search = filters.search;
 
             const response = await api.get('/admin/bids', { params });
-            const { bids, pagination: apiPagination } = response.data.data;
+            const { items, pagination: apiPagination } = unwrapList<Bid>(response, 'bids');
 
             set({
-                bids,
+                bids: items,
                 loading: false,
                 pagination: { ...pagination, ...apiPagination }
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to fetch bids',
+                error: getErrorMessage(error, 'Failed to fetch bids'),
                 loading: false
             });
         }
@@ -98,11 +158,28 @@ const useBidsStore = create<BidsState>((set, get) => ({
         set({ loading: true, error: null, current: null });
         try {
             const response = await api.get(`/admin/bids/${id}`);
-            set({ current: response.data.data, loading: false });
-        } catch (error: any) {
+            set({ current: unwrap<BidDetail>(response), loading: false });
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to load bid',
+                error: getErrorMessage(error, 'Failed to load bid'),
                 loading: false,
+            });
+        }
+    },
+
+    fetchListingBids: async (listingId: string) => {
+        set({ listingBidsLoading: true, listingBidsError: null });
+        try {
+            const response = await api.get('/admin/bids', {
+                params: { listing_id: listingId, limit: 50 },
+            });
+            const { items } = unwrapList<Bid>(response, 'bids');
+            set({ listingBids: items, listingBidsLoading: false });
+        } catch (error: unknown) {
+            set({
+                listingBids: [],
+                listingBidsError: getErrorMessage(error, 'Failed to load bids for this listing'),
+                listingBidsLoading: false,
             });
         }
     },
@@ -110,20 +187,20 @@ const useBidsStore = create<BidsState>((set, get) => ({
     fetchStats: async () => {
         try {
             const response = await api.get('/admin/stats/bids');
-            set({ stats: response.data.data });
-        } catch (error) {
-            console.error('Failed to fetch bid stats', error);
+            set({ stats: unwrap<BidsStats>(response) });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to fetch bid stats') });
         }
     },
 
     updateBidStatus: async (id, status) => {
         try {
-            await api.patch(`/admin/bids/${id}/status/`, { status });
+            await api.patch(`/admin/bids/${id}/status`, { status });
             // Refresh bids after update
             await get().fetchBids(get().pagination.page);
             await get().fetchStats();
-        } catch (error: any) {
-            set({ error: error.response?.data?.message || 'Failed to update status' });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to update status') });
             throw error;
         }
     },
