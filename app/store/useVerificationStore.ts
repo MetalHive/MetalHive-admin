@@ -1,18 +1,27 @@
 import { create } from 'zustand';
 import api from '@/app/lib/api';
+import { unwrap, unwrapList, Pagination } from '@/app/lib/unwrap';
+import { getErrorMessage } from '@/app/lib/errors';
 
+export type VerificationStatus = 'pending' | 'verified' | 'rejected';
+
+/**
+ * Row of GET /admin/verifications (AdminVerificationSerializer over
+ * BuyerProfile). `id` is the USER id, which is also what the status route
+ * expects.
+ */
 export interface VerificationRequest {
     id: string | number;
     buyerName: string;
     email: string;
     companyName: string;
-    status: 'pending' | 'verified' | 'rejected';
+    status: VerificationStatus;
     dateSubmitted: string;
-    daysPending: number; // or calculate from dateSubmitted
-    verification_document?: string;
+    daysPending: number;
+    verification_document: string | null;
 }
 
-interface VerificationStats {
+export interface VerificationStats {
     pendingReviews: number;
     verifiedBuyers: number;
     rejectedRequests: number;
@@ -28,12 +37,7 @@ interface VerificationState {
         status: string; // 'all' | 'pending' | 'verified' | 'rejected'
         search: string;
     };
-    pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-    };
+    pagination: Pagination;
 
     // Actions
     fetchRequests: (page?: number) => Promise<void>;
@@ -63,31 +67,30 @@ const useVerificationStore = create<VerificationState>((set, get) => ({
         const { filters, pagination } = get();
 
         try {
-            const params: any = {
+            const params: Record<string, string | number> = {
                 page,
                 limit: pagination.limit,
             };
 
-            if (filters.status !== 'all') params.status = filters.status;
+            if (filters.status && filters.status !== 'all') params.status = filters.status;
             if (filters.search) params.search = filters.search;
 
             const response = await api.get('/admin/verifications', { params });
-            // API matches spec: { data: [...], pagination: {...} }
-            const { data, pagination: apiPagination } = response.data;
+            // The list key follows the model name: BuyerProfile -> buyerprofiles.
+            const { items, pagination: apiPagination } = unwrapList<VerificationRequest>(
+                response,
+                'buyerprofiles'
+            );
 
             set({
-                requests: Array.isArray(data) ? data : [],
+                requests: items,
                 loading: false,
-                pagination: {
-                    ...pagination,
-                    ...apiPagination
-                }
+                pagination: { ...pagination, ...apiPagination }
             });
-
-        } catch (error: any) {
+        } catch (error: unknown) {
             set({
                 requests: [],
-                error: error.response?.data?.message || 'Failed to fetch verification requests',
+                error: getErrorMessage(error, 'Failed to fetch verification requests'),
                 loading: false
             });
         }
@@ -96,37 +99,40 @@ const useVerificationStore = create<VerificationState>((set, get) => ({
     fetchStats: async () => {
         try {
             const response = await api.get('/admin/verifications/stats');
-            set({ stats: response.data });
-        } catch (error) {
-            console.error('Failed to fetch stats', error);
+            set({ stats: unwrap<VerificationStats>(response) });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to fetch verification stats') });
         }
     },
 
     reviewRequest: async (id, action) => {
         try {
-            const status = action === 'verify' ? 'verified' : 'rejected';
+            const status: VerificationStatus = action === 'verify' ? 'verified' : 'rejected';
             await api.patch(`/admin/verifications/${id}/status`, { status });
 
-            // Optimistic update
+            // Optimistic update so the row flips immediately…
             set(state => ({
                 requests: state.requests.map(req =>
-                    req.id === id
-                        ? { ...req, status }
-                        : req
+                    String(req.id) === String(id) ? { ...req, status } : req
                 )
             }));
 
-            // Refresh stats
-            get().fetchStats();
-        } catch (error: any) {
-            set({ error: error.response?.data?.message || 'Failed to update request' });
+            // …then reconcile with the server: on a filtered tab the row
+            // should drop out, and the tab counts come from the stats endpoint.
+            await Promise.all([
+                get().fetchRequests(get().pagination.page),
+                get().fetchStats(),
+            ]);
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to update request') });
             throw error;
         }
     },
 
     setFilter: (key, value) => {
         set(state => ({
-            filters: { ...state.filters, [key]: value }
+            filters: { ...state.filters, [key]: value },
+            pagination: { ...state.pagination, page: 1 }
         }));
         get().fetchRequests(1);
     }

@@ -3,41 +3,64 @@
 import { useEffect, useState } from "react"
 import { Search } from "lucide-react"
 import usePayoutsStore from "@/app/store/usePayoutsStore"
-import { formatCurrency } from '@/app/lib/format';
+import { useToast } from "@/app/Components/Toast"
+import ErrorBanner from "@/app/Components/ErrorBanner"
+import PaginationFooter from "@/app/Components/PaginationFooter"
+import { formatCurrency, formatDate } from '@/app/lib/format';
+
+const TABS = ['all', 'pending', 'processing', 'completed', 'failed'] as const;
 
 const PayoutTable = () => {
   const {
     transactions,
     loading,
+    error,
+    actionLoading,
     pagination,
     filters,
     fetchPayouts,
     setFilter,
+    approvePayout,
+    rejectPayout,
   } = usePayoutsStore();
 
-  const [activeTab, setActiveTab] = useState<
-    "all" | "pending" | "completed" | "failed"
-  >("all")
+  const toast = useToast();
+  const activeTab = filters.status || 'all';
+  const [searchQuery, setSearchQuery] = useState(filters.search)
 
-  const [searchQuery, setSearchQuery] = useState("")
-
+  // Exactly one fetch on mount.
   useEffect(() => {
-    // Map tab to status filter
-    const status = activeTab === 'all' ? '' : activeTab;
-    setFilter('status', status);
-  }, [activeTab]);
+    fetchPayouts(1);
+  }, [fetchPayouts])
 
+  // Debounced search; skipped when the input already matches the store.
   useEffect(() => {
+    if (searchQuery === filters.search) return;
     const timeoutId = setTimeout(() => {
       setFilter('search', searchQuery);
     }, 500);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
+  }, [searchQuery, filters.search, setFilter]);
 
-  useEffect(() => {
-    fetchPayouts();
-  }, [])
+  const handleApprove = async (id: string) => {
+    if (!confirm('Approve this payout? The withdrawal will be marked completed.')) return;
+    try {
+      await approvePayout(id);
+      toast.success('Payout approved.');
+    } catch {
+      toast.error(usePayoutsStore.getState().error || 'Failed to approve payout.');
+    }
+  }
 
+  const handleReject = async (id: string) => {
+    if (!confirm('Reject this payout? The amount will be returned to the seller\'s balance.')) return;
+    try {
+      await rejectPayout(id);
+      toast.success('Payout rejected.');
+    } catch {
+      toast.error(usePayoutsStore.getState().error || 'Failed to reject payout.');
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -49,6 +72,8 @@ const PayoutTable = () => {
     }
   }
 
+  const columns = "grid grid-cols-[2.8fr_2fr_1.5fr_1.5fr_2fr_1.5fr_2fr] gap-6 px-4";
+
   return (
     <div className="min-h-screen p-4 mt-2">
       <div className="max-w-7xl mx-auto bg-white rounded-lg border border-gray-200">
@@ -56,10 +81,10 @@ const PayoutTable = () => {
         {/* Tabs + Search */}
         <div className="flex justify-between items-center px-4 border border-t-0 border-b-gray-200 border-l-[#EFEFEF] border-r-[#EFEFEF]">
           <div className="flex py-4 gap-4">
-            {['all', 'pending', 'completed', 'failed'].map((tab) => (
+            {TABS.map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab as any)}
+                onClick={() => setFilter('status', tab === 'all' ? '' : tab)}
                 className={`px-6 py-3 text-sm font-medium border-b-2 capitalize ${activeTab === tab
                     ? "border-[#C9A227] text-black"
                     : "border-transparent text-gray-500 hover:text-gray-700"
@@ -83,14 +108,17 @@ const PayoutTable = () => {
           </div>
         </div>
 
+        {error && <ErrorBanner message={error} className="m-4" />}
+
         {/* Table Header */}
-        <div className="grid grid-cols-[2.8fr_2fr_2fr_1.5fr_2fr_2fr] gap-10 px-4 py-6 border-b text-sm font-medium text-gray-600 border-[#EFEFEF] ">
+        <div className={`${columns} py-6 border-b text-sm font-medium text-gray-600 border-[#EFEFEF]`}>
           <div>Payout ID</div>
           <div>Seller</div>
           <div>Amount</div>
           <div>Status</div>
           <div>Payment Method</div>
           <div>Date</div>
+          <div className="text-right">Actions</div>
         </div>
 
         {/* Rows */}
@@ -98,66 +126,75 @@ const PayoutTable = () => {
           {loading ? (
             <div className="py-12 text-center text-gray-500">Loading payouts...</div>
           ) : transactions.length === 0 ? (
-            <div className="py-12 text-center text-gray-500">No payouts found</div>
+            <div className="py-12 text-center text-gray-500">
+              {error ? 'Payouts could not be loaded.' : 'No payouts found'}
+            </div>
           ) : (
-            transactions.map(listing => (
-              <div
-                key={listing.id}
-                className="grid grid-cols-[2.8fr_2fr_2fr_1.5fr_2fr_2fr] gap-10 px-4 py-4 hover:bg-gray-50 "
-              >
-                {/* Payout ID */}
-                <div className="font-medium text-gray-900 pr-6">
-                  {listing.id}
+            transactions.map(payout => {
+              const busy = actionLoading === payout.id;
+              return (
+                <div
+                  key={payout.id}
+                  className={`${columns} py-4 hover:bg-gray-50 items-center`}
+                >
+                  {/* Payout ID */}
+                  <div className="font-medium text-gray-900 pr-6 break-all">
+                    {payout.id}
+                  </div>
+
+                  {/* Seller */}
+                  <div>
+                    <p className="font-medium text-gray-900">{payout.seller_name}</p>
+                  </div>
+
+                  {/* Amount — withdrawals are stored negative */}
+                  <div className="font-medium">
+                    {formatCurrency(Math.abs(Number(payout.amount)))}
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${getStatusColor(payout.status)}`}>
+                      {payout.status}
+                    </span>
+                  </div>
+
+                  {/* Payment Method */}
+                  <div className="capitalize">{payout.method?.replace(/_/g, ' ') || '—'}</div>
+
+                  {/* Date */}
+                  <div>{formatDate(payout.request_date)}</div>
+
+                  {/* Actions: only a processing withdrawal can be decided */}
+                  <div className="flex items-center justify-end gap-2">
+                    {payout.status === 'processing' ? (
+                      <>
+                        <button
+                          onClick={() => handleApprove(payout.id)}
+                          disabled={busy}
+                          className="px-3 py-1.5 text-xs font-medium rounded-md bg-[#C9A227] text-white hover:bg-[#b08d21] disabled:opacity-50"
+                        >
+                          {busy ? '…' : 'Approve'}
+                        </button>
+                        <button
+                          onClick={() => handleReject(payout.id)}
+                          disabled={busy}
+                          className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-500 text-red-500 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </div>
                 </div>
-
-                {/* Seller */}
-                <div>
-                  <p className="font-medium text-gray-900">{listing.seller_name}</p>
-                  {/* <p className="text-sm text-gray-500">{listing.email}</p> Email might not be in response, check store type */}
-                </div>
-
-                {/* Amount */}
-                <div className="font-medium">
-                  {formatCurrency(listing.amount)}
-                </div>
-
-                {/* Status */}
-                <div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${getStatusColor(listing.status)}`}>
-                    {listing.status}
-                  </span>
-                </div>
-
-                {/* Payment Method */}
-                <div className="capitalize">{listing.method?.replace('_', ' ')}</div>
-
-                {/* Date */}
-                <div>{listing.request_date}</div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
-        {/* Pagination */}
-        <div className="p-4 border-t border-gray-200 text-xs text-gray-500 flex justify-between items-center">
-          <span>Showing {(pagination.page - 1) * pagination.limit + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}</span>
-          <div className="flex gap-1">
-            <button
-              disabled={pagination.page <= 1}
-              onClick={() => fetchPayouts(pagination.page - 1)}
-              className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
-            >
-              Prev
-            </button>
-            <button
-              disabled={pagination.page >= pagination.totalPages}
-              onClick={() => fetchPayouts(pagination.page + 1)}
-              className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <PaginationFooter pagination={pagination} onPageChange={fetchPayouts} />
       </div>
     </div>
   )

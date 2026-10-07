@@ -4,14 +4,13 @@ import { useEffect } from 'react';
 import SideBar from '@/app/Components/Sidebar';
 import VerificationTable from '@/app/Components/VerificationTable';
 import useVerificationStore from '@/app/store/useVerificationStore';
-import { LuCalendarRange } from "react-icons/lu";
 
 const VerificationPage = () => {
     const { stats, fetchStats } = useVerificationStore();
 
     useEffect(() => {
         fetchStats();
-    }, []);
+    }, [fetchStats]);
 
     return (
         <div className='flex min-h-screen bg-[#FDFDFD]'>
@@ -22,11 +21,6 @@ const VerificationPage = () => {
                         <h1 className="text-2xl font-semibold text-[#17181A] mb-1">Buyer Verification</h1>
                         <p className="text-[#5F6D7E] text-sm">Review and approve buyer verification requests</p>
                     </div>
-
-                    <button className="flex items-center gap-2 border border-gray-200 bg-white px-3 py-2 rounded-lg text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
-                        <LuCalendarRange className="w-4 h-4" />
-                        Last 30 days
-                    </button>
                 </div>
 
                 {/* Stats Cards */}

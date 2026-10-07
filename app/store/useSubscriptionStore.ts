@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import api from '@/app/lib/api';
+import { unwrap, unwrapList, Pagination } from '@/app/lib/unwrap';
+import { getErrorMessage } from '@/app/lib/errors';
 
-interface Subscription {
+/** Row of GET /admin/subscriptions (AdminSubscriptionSerializer). */
+export interface Subscription {
     id: string;
     buyer_name: string;
     buyer_email: string;
@@ -9,25 +12,22 @@ interface Subscription {
     status: 'active' | 'cancelled' | 'expired';
     billing_status: string;
     start_date: string;
-    next_billing_date: string;
+    next_billing_date: string | null;
+}
+
+interface SubscriptionStats {
+    activeCount: number;
+    cancelledCount: number;
+    expiredCount: number;
+    mrr: number;
 }
 
 interface SubscriptionState {
     subscriptions: Subscription[];
-    stats: {
-        activeCount: number;
-        cancelledCount: number;
-        expiredCount: number;
-        mrr: number;
-    } | null;
+    stats: SubscriptionStats | null;
     loading: boolean;
     error: string | null;
-    pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-    };
+    pagination: Pagination;
     filters: {
         status: string;
         search: string;
@@ -36,7 +36,7 @@ interface SubscriptionState {
     fetchSubscriptions: (page?: number) => Promise<void>;
     fetchStats: () => Promise<void>;
     cancelSubscription: (id: string) => Promise<void>;
-    setFilter: (key: string, value: string) => void;
+    setFilter: (key: 'status' | 'search', value: string) => void;
 }
 
 const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
@@ -60,7 +60,7 @@ const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
         const { filters, pagination } = get();
 
         try {
-            const params: any = {
+            const params: Record<string, string | number> = {
                 page,
                 limit: pagination.limit,
             };
@@ -69,16 +69,16 @@ const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
             if (filters.search) params.search = filters.search;
 
             const response = await api.get('/admin/subscriptions', { params });
-            const { subscriptions, pagination: apiPagination } = response.data.data;
+            const { items, pagination: apiPagination } = unwrapList<Subscription>(response, 'subscriptions');
 
             set({
-                subscriptions,
+                subscriptions: items,
                 loading: false,
                 pagination: { ...pagination, ...apiPagination }
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to fetch subscriptions',
+                error: getErrorMessage(error, 'Failed to fetch subscriptions'),
                 loading: false
             });
         }
@@ -87,19 +87,19 @@ const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     fetchStats: async () => {
         try {
             const response = await api.get('/admin/stats/subscriptions');
-            set({ stats: response.data.data });
-        } catch (error) {
-            console.error('Failed to fetch subscription stats', error);
+            set({ stats: unwrap<SubscriptionStats>(response) });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to fetch subscription stats') });
         }
     },
 
     cancelSubscription: async (id) => {
         try {
-            await api.post(`/admin/subscriptions/${id}/cancel/`);
+            await api.post(`/admin/subscriptions/${id}/cancel`);
             await get().fetchSubscriptions(get().pagination.page);
             await get().fetchStats();
-        } catch (error: any) {
-            set({ error: error.response?.data?.message || 'Failed to cancel subscription' });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to cancel subscription') });
             throw error;
         }
     },

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import api from '@/app/lib/api';
+import { unwrap } from '@/app/lib/unwrap';
+import { getErrorMessage } from '@/app/lib/errors';
 
 interface DashboardStats {
     totalUsers: number;
@@ -24,10 +26,10 @@ const useDashboardStore = create<DashboardState>((set) => ({
         set({ loading: true, error: null });
         try {
             const response = await api.get('/admin/stats/overview');
-            set({ stats: response.data.data, loading: false });
-        } catch (error: any) {
+            set({ stats: unwrap<DashboardStats>(response), loading: false });
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to fetch dashboard stats',
+                error: getErrorMessage(error, 'Failed to fetch dashboard stats'),
                 loading: false
             });
         }

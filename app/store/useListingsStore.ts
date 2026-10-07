@@ -1,14 +1,19 @@
 import { create } from 'zustand';
 import api from '@/app/lib/api';
+import { unwrap, unwrapList, Pagination } from '@/app/lib/unwrap';
+import { getErrorMessage } from '@/app/lib/errors';
 
 export type ListingStatus = 'draft' | 'active' | 'sold' | 'inactive' | 'suspended';
 
+/** Row of GET /admin/listings (AdminListingSerializer). */
 export interface Listing {
     id: string;
     material_name: string;
     seller_name: string;
     price: string;
     price_unit: string;
+    /** Alias some backend builds emit instead of `price_unit`. */
+    priceUnit?: string;
     price_per_kg: string | null;
     status: ListingStatus;
     created_date: string;
@@ -17,8 +22,26 @@ export interface Listing {
     total_value: string | null;
 }
 
-/** Shape of AdminListingDetailSerializer (Listing with `fields = "__all__"`). */
+/** `seller` on the detail response (AdminUserSerializer). */
+export interface ListingSeller {
+    id: number;
+    name: string;
+    company_name: string | null;
+    first_name: string;
+    last_name: string;
+    email: string;
+    user_type: string;
+    status: string;
+    date_joined: string;
+    last_login: string | null;
+}
+
+/**
+ * GET /admin/listings/{id} (AdminListingDetailSerializer): every list field
+ * above plus the raw model fields.
+ */
 export interface ListingDetail extends Listing {
+    seller: ListingSeller | null;
     product_code: string;
     material_type: string;
     condition: string;
@@ -27,40 +50,33 @@ export interface ListingDetail extends Listing {
     base_price: string;
     location: string;
     description: string;
-    images: string[];
     additional_notes: string | null;
+    images: string[];
     suspension_reason: string;
     suspended_at: string | null;
     is_deleted: boolean;
+    deleted_at: string | null;
     views_count: number;
     bids_count: number;
     created_at: string;
+    updated_at: string;
     published_at: string | null;
-    seller: {
-        id: number;
-        name: string;
-        email: string;
-        company_name: string | null;
-        user_type: string;
-    } | null;
+    sold_at: string | null;
+}
+
+interface ListingsStats {
+    totalListings: number;
+    activeListings: number;
+    soldListings: number;
+    suspendedListings: number;
 }
 
 interface ListingsState {
     listings: Listing[];
-    stats: {
-        totalListings: number;
-        activeListings: number;
-        soldListings: number;
-        suspendedListings: number;
-    } | null;
+    stats: ListingsStats | null;
     loading: boolean;
     error: string | null;
-    pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-    };
+    pagination: Pagination;
     filters: {
         status: string;
         search: string;
@@ -75,7 +91,7 @@ interface ListingsState {
     deleteListing: (id: string) => Promise<void>;
     suspendListing: (id: string, reason?: string) => Promise<void>;
     reinstateListing: (id: string) => Promise<void>;
-    setFilter: (key: string, value: string) => void;
+    setFilter: (key: 'status' | 'search' | 'category', value: string) => void;
 }
 
 const useListingsStore = create<ListingsState>((set, get) => ({
@@ -102,7 +118,7 @@ const useListingsStore = create<ListingsState>((set, get) => ({
         const { filters, pagination } = get();
 
         try {
-            const params: any = {
+            const params: Record<string, string | number> = {
                 page,
                 limit: pagination.limit,
             };
@@ -112,16 +128,16 @@ const useListingsStore = create<ListingsState>((set, get) => ({
             if (filters.search) params.search = filters.search;
 
             const response = await api.get('/admin/listings', { params });
-            const { listings, pagination: apiPagination } = response.data.data;
+            const { items, pagination: apiPagination } = unwrapList<Listing>(response, 'listings');
 
             set({
-                listings,
+                listings: items,
                 loading: false,
                 pagination: { ...pagination, ...apiPagination }
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to fetch listings',
+                error: getErrorMessage(error, 'Failed to fetch listings'),
                 loading: false
             });
         }
@@ -130,9 +146,9 @@ const useListingsStore = create<ListingsState>((set, get) => ({
     fetchStats: async () => {
         try {
             const response = await api.get('/admin/stats/listings');
-            set({ stats: response.data.data });
-        } catch (error) {
-            console.error('Failed to fetch listing stats', error);
+            set({ stats: unwrap<ListingsStats>(response) });
+        } catch (error: unknown) {
+            set({ error: getErrorMessage(error, 'Failed to fetch listing stats') });
         }
     },
 
@@ -140,10 +156,10 @@ const useListingsStore = create<ListingsState>((set, get) => ({
         set({ loading: true, error: null, current: null });
         try {
             const response = await api.get(`/admin/listings/${id}`);
-            set({ current: response.data.data, loading: false });
-        } catch (error: any) {
+            set({ current: unwrap<ListingDetail>(response), loading: false });
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to load listing',
+                error: getErrorMessage(error, 'Failed to load listing'),
                 loading: false,
             });
         }
@@ -156,9 +172,9 @@ const useListingsStore = create<ListingsState>((set, get) => ({
             set({ actionLoading: false });
             await get().fetchListings(get().pagination.page);
             await get().fetchStats();
-        } catch (error: any) {
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to delete listing',
+                error: getErrorMessage(error, 'Failed to delete listing'),
                 actionLoading: false,
             });
             throw error;
@@ -170,14 +186,14 @@ const useListingsStore = create<ListingsState>((set, get) => ({
         try {
             await api.post(`/admin/listings/${id}/suspend`, { reason });
             set({ actionLoading: false });
-            if (get().current?.id === id) await get().fetchListing(id);
+            if (String(get().current?.id) === String(id)) await get().fetchListing(id);
             // Refetch the list as deleteListing does; without it the row kept
             // its old status until the page was reloaded by hand.
             await get().fetchListings(get().pagination.page);
             await get().fetchStats();
-        } catch (error: any) {
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to suspend listing',
+                error: getErrorMessage(error, 'Failed to suspend listing'),
                 actionLoading: false,
             });
             throw error;
@@ -189,12 +205,12 @@ const useListingsStore = create<ListingsState>((set, get) => ({
         try {
             await api.post(`/admin/listings/${id}/reinstate`);
             set({ actionLoading: false });
-            if (get().current?.id === id) await get().fetchListing(id);
+            if (String(get().current?.id) === String(id)) await get().fetchListing(id);
             await get().fetchListings(get().pagination.page);
             await get().fetchStats();
-        } catch (error: any) {
+        } catch (error: unknown) {
             set({
-                error: error.response?.data?.message || 'Failed to reinstate listing',
+                error: getErrorMessage(error, 'Failed to reinstate listing'),
                 actionLoading: false,
             });
             throw error;

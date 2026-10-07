@@ -1,20 +1,33 @@
 import { create } from 'zustand';
 import api, { clearTokens } from '@/app/lib/api';
+import { unwrap } from '@/app/lib/unwrap';
+import { getErrorMessage, isHttpStatus } from '@/app/lib/errors';
 
-interface User {
-    id: string;
+/** Shape of /auth/me and the `user` member of the login response. */
+export interface AuthUser {
+    id: number | string;
     email: string;
-    role: string;
-    [key: string]: any;
+    role: string | null;
+    date_joined?: string;
+}
+
+interface LoginCredentials {
+    email: string;
+    password: string;
+}
+
+interface LoginPayload {
+    user: AuthUser;
+    tokens: { access: string; refresh?: string };
 }
 
 interface AuthState {
-    user: User | null;
+    user: AuthUser | null;
     accessToken: string | null;
     isAuthenticated: boolean;
     isLoading: boolean;
     error: string | null;
-    login: (credentials: any) => Promise<void>;
+    login: (credentials: LoginCredentials) => Promise<void>;
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
 }
@@ -28,8 +41,8 @@ const confirmAdminAccess = async (): Promise<boolean> => {
     try {
         await api.get('/admin/stats/overview');
         return true;
-    } catch (error: any) {
-        if (error.response?.status === 403) return false;
+    } catch (error: unknown) {
+        if (isHttpStatus(error, 403)) return false;
         throw error;
     }
 };
@@ -45,7 +58,7 @@ const useAuthStore = create<AuthState>((set) => ({
         set({ isLoading: true, error: null });
         try {
             const response = await api.post('/auth/login/', credentials);
-            const { user, tokens } = response.data.data;
+            const { user, tokens } = unwrap<LoginPayload>(response);
 
             localStorage.setItem('accessToken', tokens.access);
             // Previously discarded, which is why sessions died with the access
@@ -70,9 +83,9 @@ const useAuthStore = create<AuthState>((set) => ({
                 isAuthenticated: true,
                 isLoading: false
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             set((state) => ({
-                error: state.error ?? error.response?.data?.message ?? 'Login failed',
+                error: state.error ?? getErrorMessage(error, 'Login failed'),
                 isLoading: false
             }));
             throw error;
@@ -82,8 +95,12 @@ const useAuthStore = create<AuthState>((set) => ({
     logout: async () => {
         set({ isLoading: true });
         try {
-            await api.post('/auth/logout/');
-        } catch (error) {
+            // The backend blacklists the refresh token so it can no longer
+            // mint access tokens; without it the call is a no-op server side.
+            const refresh = localStorage.getItem('refreshToken');
+            if (refresh) await api.post('/auth/logout/', { refresh });
+        } catch (error: unknown) {
+            // The session is being discarded either way.
             console.error('Logout error', error);
         } finally {
             clearTokens();
@@ -93,6 +110,9 @@ const useAuthStore = create<AuthState>((set) => ({
                 isAuthenticated: false,
                 isLoading: false
             });
+            if (typeof window !== 'undefined') {
+                window.location.href = '/login';
+            }
         }
     },
 
@@ -108,8 +128,8 @@ const useAuthStore = create<AuthState>((set) => ({
             // every auth check pays a second round trip.
             const response = await api.get('/auth/me/');
             if (!(await confirmAdminAccess())) throw new Error('Not an admin account');
-            set({ user: response.data.data, accessToken: token, isAuthenticated: true });
-        } catch (error) {
+            set({ user: unwrap<AuthUser>(response), accessToken: token, isAuthenticated: true });
+        } catch {
             clearTokens();
             set({ user: null, accessToken: null, isAuthenticated: false });
         }
